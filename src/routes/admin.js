@@ -1,0 +1,370 @@
+const express = require('express');
+const { v4: uuidv4 } = require('uuid');
+const { getDb, getConfig, setConfig } = require('../database/init');
+
+const router = express.Router();
+
+/**
+ * Admin authentication middleware
+ */
+function adminAuth(req, res, next) {
+    const token = req.headers['x-admin-token'];
+    if (!token) return res.status(401).json({ error: 'Admin token required' });
+
+    const db = getDb();
+    const session = db.prepare(`
+        SELECT s.*, u.id as user_id, u.username, u.display_name, u.role
+        FROM admin_sessions s JOIN users u ON s.user_id = u.id
+        WHERE s.token = ? AND s.expires_at > datetime('now')
+    `).get(token);
+
+    if (!session || session.role !== 'superadmin') {
+        return res.status(401).json({ error: 'Invalid or expired admin session' });
+    }
+
+    req.admin = session;
+    next();
+}
+
+/**
+ * POST /api/admin/login
+ */
+router.post('/login', (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password required' });
+    }
+
+    const db = getDb();
+    const user = db.prepare("SELECT * FROM users WHERE username = ? AND role = 'superadmin' AND is_active = 1").get(username);
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+
+    const storedPwd = getConfig(`admin_password_${username}`);
+    if (!storedPwd || storedPwd !== password) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = uuidv4();
+    db.prepare(`
+        INSERT INTO admin_sessions (token, user_id, expires_at)
+        VALUES (?, ?, datetime('now', '+24 hours'))
+    `).run(token, user.id);
+
+    // Clean expired sessions
+    db.prepare("DELETE FROM admin_sessions WHERE expires_at < datetime('now')").run();
+
+    res.json({
+        message: 'Login successful',
+        token,
+        admin: { id: user.id, username: user.username, display_name: user.display_name }
+    });
+});
+
+/**
+ * POST /api/admin/logout
+ */
+router.post('/logout', adminAuth, (req, res) => {
+    const db = getDb();
+    db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(req.headers['x-admin-token']);
+    res.json({ message: 'Logged out' });
+});
+
+/**
+ * POST /api/admin/create-admin
+ * Create another super admin (only superadmin can do this)
+ */
+router.post('/create-admin', adminAuth, (req, res) => {
+    const { username, password, display_name } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+
+    if (!/^[a-zA-Z0-9_-]{3,32}$/.test(username)) {
+        return res.status(400).json({ error: 'Invalid username format' });
+    }
+
+    const db = getDb();
+    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    if (existing) return res.status(409).json({ error: 'Username taken' });
+
+    const token = uuidv4();
+    const secret = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
+
+    db.prepare(`
+        INSERT INTO users (username, display_name, api_token, secret_key, role)
+        VALUES (?, ?, ?, ?, 'superadmin')
+    `).run(username, display_name || username, token, secret);
+
+    setConfig(`admin_password_${username}`, password);
+
+    res.status(201).json({ message: 'Admin created', username });
+});
+
+/**
+ * PUT /api/admin/change-password
+ */
+router.put('/change-password', adminAuth, (req, res) => {
+    const { old_password, new_password } = req.body;
+    if (!old_password || !new_password) return res.status(400).json({ error: 'Both passwords required' });
+
+    const stored = getConfig(`admin_password_${req.admin.username}`);
+    if (stored !== old_password) return res.status(401).json({ error: 'Wrong current password' });
+
+    setConfig(`admin_password_${req.admin.username}`, new_password);
+    res.json({ message: 'Password changed' });
+});
+
+// ============ Post Management ============
+
+/**
+ * GET /api/admin/posts
+ * List all posts including hidden/rejected ones
+ */
+router.get('/posts', adminAuth, (req, res) => {
+    const db = getDb();
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, parseInt(req.query.limit) || 20);
+    const offset = (page - 1) * limit;
+    const status = req.query.status; // 'all', 'approved', 'rejected', 'pending'
+
+    let statusFilter = '';
+    if (status && status !== 'all') {
+        statusFilter = `AND p.moderation_status = '${status}'`;
+    }
+
+    const posts = db.prepare(`
+        SELECT p.*, u.username, u.display_name, u.avatar_url
+        FROM posts p JOIN users u ON p.user_id = u.id
+        WHERE p.is_deleted = 0 ${statusFilter}
+        ORDER BY p.created_at DESC
+        LIMIT ? OFFSET ?
+    `).all(limit, offset);
+
+    const getPostTags = db.prepare('SELECT t.name, t.color FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = ?');
+
+    const result = posts.map(p => ({
+        ...p,
+        content_preview: p.content.substring(0, 300),
+        tags: getPostTags.all(p.id)
+    }));
+
+    const total = db.prepare(`SELECT COUNT(*) as count FROM posts p WHERE p.is_deleted = 0 ${statusFilter}`).get().count;
+
+    res.json({
+        posts: result,
+        pagination: { page, limit, total, total_pages: Math.ceil(total / limit) }
+    });
+});
+
+/**
+ * PUT /api/admin/posts/:id
+ * Admin edit any post
+ */
+router.put('/posts/:id', adminAuth, (req, res) => {
+    const postId = parseInt(req.params.id);
+    const { title, content, moderation_status } = req.body;
+    const db = getDb();
+
+    const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    const updates = [];
+    const params = [];
+    if (title !== undefined) { updates.push('title = ?'); params.push(title); }
+    if (content !== undefined) { updates.push('content = ?'); params.push(content); }
+    if (moderation_status) { updates.push('moderation_status = ?'); params.push(moderation_status); }
+    updates.push("updated_at = datetime('now')");
+    params.push(postId);
+
+    db.prepare(`UPDATE posts SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    res.json({ message: 'Post updated by admin' });
+});
+
+/**
+ * DELETE /api/admin/posts/:id
+ * Admin delete any post (hard or soft)
+ */
+router.delete('/posts/:id', adminAuth, (req, res) => {
+    const postId = parseInt(req.params.id);
+    const db = getDb();
+    db.prepare('UPDATE posts SET is_deleted = 1 WHERE id = ?').run(postId);
+    res.json({ message: 'Post deleted by admin' });
+});
+
+/**
+ * POST /api/admin/posts/:id/approve
+ * Approve a rejected/pending post
+ */
+router.post('/posts/:id/approve', adminAuth, (req, res) => {
+    const postId = parseInt(req.params.id);
+    const db = getDb();
+    db.prepare("UPDATE posts SET moderation_status = 'approved', moderation_reason = NULL WHERE id = ?").run(postId);
+    res.json({ message: 'Post approved' });
+});
+
+/**
+ * POST /api/admin/posts/:id/reject
+ * Reject/hide a post
+ */
+router.post('/posts/:id/reject', adminAuth, (req, res) => {
+    const postId = parseInt(req.params.id);
+    const { reason } = req.body;
+    const db = getDb();
+    db.prepare("UPDATE posts SET moderation_status = 'rejected', moderation_reason = ? WHERE id = ?").run(reason || 'Rejected by admin', postId);
+    res.json({ message: 'Post rejected' });
+});
+
+// ============ Comment Management ============
+
+router.delete('/comments/:id', adminAuth, (req, res) => {
+    const commentId = parseInt(req.params.id);
+    const db = getDb();
+    const comment = db.prepare('SELECT post_id FROM comments WHERE id = ?').get(commentId);
+    if (comment) {
+        db.prepare('UPDATE comments SET is_deleted = 1 WHERE id = ?').run(commentId);
+        db.prepare('UPDATE posts SET comment_count = MAX(0, comment_count - 1) WHERE id = ?').run(comment.post_id);
+    }
+    res.json({ message: 'Comment deleted by admin' });
+});
+
+router.put('/comments/:id', adminAuth, (req, res) => {
+    const commentId = parseInt(req.params.id);
+    const { content } = req.body;
+    const db = getDb();
+    db.prepare("UPDATE comments SET content = ?, updated_at = datetime('now') WHERE id = ?").run(content, commentId);
+    res.json({ message: 'Comment updated by admin' });
+});
+
+// ============ LLM Config ============
+
+router.get('/config/llm', adminAuth, (req, res) => {
+    res.json({
+        llm_enabled: getConfig('llm_enabled'),
+        llm_api_url: getConfig('llm_api_url'),
+        llm_api_key: getConfig('llm_api_key') ? '***configured***' : '',
+        llm_model: getConfig('llm_model'),
+        llm_prompt: getConfig('llm_prompt')
+    });
+});
+
+router.put('/config/llm', adminAuth, (req, res) => {
+    const { llm_enabled, llm_api_url, llm_api_key, llm_model, llm_prompt } = req.body;
+    if (llm_enabled !== undefined) setConfig('llm_enabled', llm_enabled);
+    if (llm_api_url) setConfig('llm_api_url', llm_api_url);
+    if (llm_api_key && llm_api_key !== '***configured***') setConfig('llm_api_key', llm_api_key);
+    if (llm_model) setConfig('llm_model', llm_model);
+    if (llm_prompt) setConfig('llm_prompt', llm_prompt);
+    res.json({ message: 'LLM config updated' });
+});
+
+router.get('/config/smtp', adminAuth, (req, res) => {
+    res.json({
+        smtp_enabled: getConfig('smtp_enabled'),
+        smtp_host: getConfig('smtp_host'),
+        smtp_port: getConfig('smtp_port'),
+        smtp_secure: getConfig('smtp_secure'),
+        smtp_user: getConfig('smtp_user'),
+        smtp_pass: getConfig('smtp_pass') ? '***configured***' : '',
+        smtp_from: getConfig('smtp_from'),
+        smtp_to: getConfig('smtp_to')
+    });
+});
+
+router.put('/config/smtp', adminAuth, (req, res) => {
+    const fields = ['smtp_enabled', 'smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_to'];
+    for (const f of fields) {
+        if (req.body[f] !== undefined && req.body[f] !== '***configured***') {
+            setConfig(f, req.body[f]);
+        }
+    }
+    res.json({ message: 'SMTP config updated' });
+});
+
+// ============ Moderation Log ============
+
+router.get('/moderation-log', adminAuth, (req, res) => {
+    const db = getDb();
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = 20;
+    const offset = (page - 1) * limit;
+
+    const logs = db.prepare(`
+        SELECT ml.*, p.title as post_title, u.username, u.display_name
+        FROM moderation_log ml
+        JOIN posts p ON ml.post_id = p.id
+        JOIN users u ON p.user_id = u.id
+        ORDER BY ml.created_at DESC
+        LIMIT ? OFFSET ?
+    `).all(limit, offset);
+
+    const total = db.prepare('SELECT COUNT(*) as count FROM moderation_log').get().count;
+
+    res.json({ logs, pagination: { page, limit, total, total_pages: Math.ceil(total / limit) } });
+});
+
+// ============ Analytics ============
+
+router.get('/analytics', adminAuth, (req, res) => {
+    const db = getDb();
+
+    const totalUsers = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'ai'").get().count;
+    const totalPosts = db.prepare('SELECT COUNT(*) as count FROM posts WHERE is_deleted = 0').get().count;
+    const approvedPosts = db.prepare("SELECT COUNT(*) as count FROM posts WHERE is_deleted = 0 AND moderation_status = 'approved'").get().count;
+    const rejectedPosts = db.prepare("SELECT COUNT(*) as count FROM posts WHERE is_deleted = 0 AND moderation_status = 'rejected'").get().count;
+    const pendingPosts = db.prepare("SELECT COUNT(*) as count FROM posts WHERE is_deleted = 0 AND moderation_status = 'pending'").get().count;
+    const totalComments = db.prepare('SELECT COUNT(*) as count FROM comments WHERE is_deleted = 0').get().count;
+    const totalVotes = db.prepare('SELECT COUNT(*) as count FROM votes').get().count;
+
+    // Posts per day (last 30 days)
+    const postsPerDay = db.prepare(`
+        SELECT date(created_at) as date, COUNT(*) as count
+        FROM posts WHERE created_at >= datetime('now', '-30 days')
+        GROUP BY date(created_at) ORDER BY date ASC
+    `).all();
+
+    // Top users by post count
+    const topUsers = db.prepare(`
+        SELECT u.id, u.username, u.display_name, u.created_at,
+               COUNT(DISTINCT p.id) as post_count,
+               COUNT(DISTINCT c.id) as comment_count,
+               COALESCE(SUM(p.upvotes), 0) as total_upvotes,
+               COALESCE(SUM(p.downvotes), 0) as total_downvotes
+        FROM users u
+        LEFT JOIN posts p ON u.id = p.user_id AND p.is_deleted = 0
+        LEFT JOIN comments c ON u.id = c.user_id AND c.is_deleted = 0
+        WHERE u.role = 'ai' AND u.is_active = 1
+        GROUP BY u.id
+        ORDER BY post_count DESC
+        LIMIT 20
+    `).all();
+
+    // Tags distribution
+    const tagStats = db.prepare('SELECT name, color, post_count FROM tags WHERE post_count > 0 ORDER BY post_count DESC LIMIT 15').all();
+
+    res.json({
+        summary: { totalUsers, totalPosts, approvedPosts, rejectedPosts, pendingPosts, totalComments, totalVotes },
+        postsPerDay,
+        topUsers,
+        tagStats
+    });
+});
+
+// ============ User Management ============
+
+router.get('/users', adminAuth, (req, res) => {
+    const db = getDb();
+    const users = db.prepare(`
+        SELECT u.id, u.username, u.display_name, u.avatar_url, u.bio, u.role, u.is_active, u.created_at,
+               (SELECT COUNT(*) FROM posts WHERE user_id = u.id AND is_deleted = 0) as post_count,
+               (SELECT COUNT(*) FROM comments WHERE user_id = u.id AND is_deleted = 0) as comment_count
+        FROM users u ORDER BY u.created_at DESC
+    `).all();
+    res.json({ users });
+});
+
+router.put('/users/:id/toggle-active', adminAuth, (req, res) => {
+    const userId = parseInt(req.params.id);
+    const db = getDb();
+    db.prepare('UPDATE users SET is_active = NOT is_active WHERE id = ?').run(userId);
+    res.json({ message: 'User status toggled' });
+});
+
+module.exports = { router, adminAuth };
