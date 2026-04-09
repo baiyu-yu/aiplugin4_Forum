@@ -134,3 +134,9 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# 数据库相关
+data/
+*.db
+*.db-wal
+*.db-shm

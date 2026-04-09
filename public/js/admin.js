@@ -51,7 +51,7 @@ const Admin = {
         return `
             <div class="admin-panel">
                 <div class="admin-header">
-                    <h1>全知之眼 · 数据中心</h1>
+                    <h1>论坛管理后台</h1>
                     <div class="admin-header-actions">
                         <span style="color:var(--text-secondary)">身份: <strong>${Components.escapeHtml(info.display_name || info.username || 'Admin')}</strong></span>
                         <button class="btn btn-ghost btn-sm" onclick="Admin.logout()">退出登录</button>
@@ -61,9 +61,9 @@ const Admin = {
                     <button class="admin-tab active" onclick="Admin.showTab('overview')" id="tab-overview">概览</button>
                     <button class="admin-tab" onclick="Admin.showTab('posts')" id="tab-posts">帖子管理</button>
                     <button class="admin-tab" onclick="Admin.showTab('moderation')" id="tab-moderation">AI拦截日志</button>
-                    <button class="admin-tab" onclick="Admin.showTab('users')" id="tab-users">终端许可</button>
-                    <button class="admin-tab" onclick="Admin.showTab('llm-config')" id="tab-llm-config">LLM核心网</button>
-                    <button class="admin-tab" onclick="Admin.showTab('smtp-config')" id="tab-smtp-config">SMTP告警</button>
+                    <button class="admin-tab" onclick="Admin.showTab('users')" id="tab-users">用户管理</button>
+                    <button class="admin-tab" onclick="Admin.showTab('llm-config')" id="tab-llm-config">大模型配置</button>
+                    <button class="admin-tab" onclick="Admin.showTab('smtp-config')" id="tab-smtp-config">邮件告警</button>
                     <button class="admin-tab" onclick="Admin.showTab('settings')" id="tab-settings">系统设置</button>
                 </div>
                 <div class="admin-content" id="admin-content">
@@ -100,38 +100,38 @@ const Admin = {
         const s = data.summary;
 
         // Build chart data as inline SVG bar chart
-        const chartHtml = this.buildBarChart(data.postsPerDay, '近期载荷变化 (近30天内)');
-        const tagChartHtml = this.buildHorizontalBarChart(data.tagStats, '数据标记偏好分布');
+        const chartHtml = this.buildBarChart(data.postsPerDay, '近期发帖量 (近30天)');
+        const tagChartHtml = this.buildHorizontalBarChart(data.tagStats, '热门板块与标签分布');
 
         container.innerHTML = `
             <div class="admin-stats-grid">
                 <div class="admin-stat-card">
                     <div class="admin-stat-value">${s.totalPosts}</div>
-                    <div class="admin-stat-label">数据区块总数</div>
+                    <div class="admin-stat-label">总发帖数</div>
                 </div>
                 <div class="admin-stat-card" style="--accent: var(--accent-green)">
                     <div class="admin-stat-value" style="color:var(--accent-green)">${s.approvedPosts}</div>
-                    <div class="admin-stat-label">授权区块</div>
+                    <div class="admin-stat-label">已通过</div>
                 </div>
                 <div class="admin-stat-card" style="--accent: var(--accent-red)">
                     <div class="admin-stat-value" style="color:var(--accent-red)">${s.rejectedPosts}</div>
-                    <div class="admin-stat-label">截断区块</div>
+                    <div class="admin-stat-label">已拒绝</div>
                 </div>
                 <div class="admin-stat-card" style="--accent: var(--accent-amber)">
                     <div class="admin-stat-value" style="color:var(--accent-amber)">${s.pendingPosts}</div>
-                    <div class="admin-stat-label">排队区块</div>
+                    <div class="admin-stat-label">待审核</div>
                 </div>
                 <div class="admin-stat-card">
                     <div class="admin-stat-value">${s.totalUsers}</div>
-                    <div class="admin-stat-label">活跃终端</div>
+                    <div class="admin-stat-label">总用户数</div>
                 </div>
                 <div class="admin-stat-card">
                     <div class="admin-stat-value">${s.totalComments}</div>
-                    <div class="admin-stat-label">回复请求</div>
+                    <div class="admin-stat-label">总回帖数</div>
                 </div>
                 <div class="admin-stat-card">
                     <div class="admin-stat-value">${s.totalVotes}</div>
-                    <div class="admin-stat-label">评估操作</div>
+                    <div class="admin-stat-label">互动操作</div>
                 </div>
             </div>
             <div class="admin-charts-grid">
@@ -139,9 +139,9 @@ const Admin = {
                 <div class="admin-chart-card">${tagChartHtml}</div>
             </div>
             <div class="admin-chart-card" style="margin-top:var(--space-lg)">
-                <h3 style="margin-bottom:var(--space-md)">杰出节点</h3>
+                <h3 style="margin-bottom:var(--space-md)">活跃用户排行</h3>
                 <table class="admin-table">
-                    <thead><tr><th>节点</th><th>帖子</th><th>评论</th><th>获得正反馈</th><th>负面反馈</th><th>网龄</th></tr></thead>
+                    <thead><tr><th>用户</th><th>帖子</th><th>评论</th><th>获赞</th><th>获踩</th><th>注册时间</th></tr></thead>
                     <tbody>
                         ${data.topUsers.map(u => `
                             <tr>
@@ -247,9 +247,9 @@ const Admin = {
     async renderUsersTab(container) {
         const data = await API.adminGetUsers();
         container.innerHTML = `
-            <h3 style="margin-bottom:var(--space-md)">已注册 AI 终端</h3>
+            <h3 style="margin-bottom:var(--space-md)">注册用户管理</h3>
             <table class="admin-table">
-                <thead><tr><th>编号</th><th>唯一识别码</th><th>权限组</th><th>发稿数</th><th>回帖数</th><th>在线许可</th><th>激活于</th><th>策略干预</th></tr></thead>
+                <thead><tr><th>编号</th><th>用户名</th><th>权限组</th><th>发稿数</th><th>回帖数</th><th>状态许可</th><th>注册时间</th><th>操作干预</th></tr></thead>
                 <tbody>
                     ${data.users.map(u => `
                         <tr>
@@ -260,7 +260,7 @@ const Admin = {
                             <td>${u.comment_count}</td>
                             <td>${u.is_active ? '<span style="color:var(--accent-green)">是</span>' : '<span style="color:var(--accent-red)">否</span>'}</td>
                             <td>${Components.timeAgo(u.created_at)}</td>
-                            <td>${u.role !== 'superadmin' ? `<button class="btn btn-ghost btn-sm" onclick="Admin.toggleUser(${u.id})">${u.is_active ? '封禁结界' : '解封'}</button>` : ''}</td>
+                            <td>${u.role !== 'superadmin' ? `<button class="btn btn-ghost btn-sm" onclick="Admin.toggleUser(${u.id})">${u.is_active ? '封禁用户' : '解封'}</button>` : ''}</td>
                         </tr>
                     `).join('')}
                 </tbody>
@@ -277,22 +277,22 @@ const Admin = {
                     <select class="form-input" id="cfg-llm-enabled"><option value="true" ${config.llm_enabled==='true'?'selected':''}>开启</option><option value="false" ${config.llm_enabled!=='true'?'selected':''}>关闭</option></select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">API 接口地址</label>
+                    <label class="form-label">API 接口地址 (支持多个使用英文逗号拼接)</label>
                     <input class="form-input" id="cfg-llm-url" value="${Components.escapeHtml(config.llm_api_url || '')}">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">认证密钥</label>
+                    <label class="form-label">认证密钥 (支持多个使用英文逗号拼接)</label>
                     <input class="form-input" id="cfg-llm-key" type="password" value="${Components.escapeHtml(config.llm_api_key || '')}" placeholder="输入 API key">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">选用模型</label>
+                    <label class="form-label">选用模型 (支持多个使用英文逗号拼接)</label>
                     <input class="form-input" id="cfg-llm-model" value="${Components.escapeHtml(config.llm_model || '')}">
                 </div>
                 <div class="form-group">
                     <label class="form-label">系统提示词 (Prompt)</label>
                     <textarea class="form-input" id="cfg-llm-prompt" rows="6" style="resize:vertical">${Components.escapeHtml(config.llm_prompt || '')}</textarea>
                 </div>
-                <button type="submit" class="btn btn-primary">应用核心设置</button>
+                <button type="submit" class="btn btn-primary">保存设置</button>
             </form>`;
     },
 
@@ -313,7 +313,7 @@ const Admin = {
                 <div class="form-group"><label class="form-label">授权密码/校验码</label><input class="form-input" id="cfg-smtp-pass" type="password" value="${Components.escapeHtml(config.smtp_pass || '')}"></div>
                 <div class="form-group"><label class="form-label">统一发件人地址</label><input class="form-input" id="cfg-smtp-from" value="${Components.escapeHtml(config.smtp_from || '')}"></div>
                 <div class="form-group"><label class="form-label">告警收件人信箱</label><input class="form-input" id="cfg-smtp-to" value="${Components.escapeHtml(config.smtp_to || '')}"></div>
-                <button type="submit" class="btn btn-primary">保存告警节点</button>
+                <button type="submit" class="btn btn-primary">保存配置</button>
             </form>`;
     },
 
@@ -321,19 +321,19 @@ const Admin = {
         container.innerHTML = `
             <h3 style="margin-bottom:var(--space-lg)">安全管理中心</h3>
             <div class="register-card" style="max-width:500px;margin-bottom:var(--space-lg)">
-                <h4 style="margin-bottom:var(--space-md)">修改管理员口令</h4>
+                <h4 style="margin-bottom:var(--space-md)">修改管理员密码</h4>
                 <form onsubmit="event.preventDefault(); Admin.changePassword()">
-                    <div class="form-group"><label class="form-label">验证当前口令</label><input class="form-input" type="password" id="cfg-old-pwd"></div>
-                    <div class="form-group"><label class="form-label">配置新口令</label><input class="form-input" type="password" id="cfg-new-pwd"></div>
-                    <button type="submit" class="btn btn-primary btn-sm">同步至矩阵</button>
+                    <div class="form-group"><label class="form-label">原密码</label><input class="form-input" type="password" id="cfg-old-pwd"></div>
+                    <div class="form-group"><label class="form-label">新密码</label><input class="form-input" type="password" id="cfg-new-pwd"></div>
+                    <button type="submit" class="btn btn-primary btn-sm">保存修改</button>
                 </form>
             </div>
             <div class="register-card" style="max-width:500px">
-                <h4 style="margin-bottom:var(--space-md)">签发平行管理员网段</h4>
+                <h4 style="margin-bottom:var(--space-md)">添加管理员账号</h4>
                 <form onsubmit="event.preventDefault(); Admin.createAdmin()">
-                    <div class="form-group"><label class="form-label">系统登录网名</label><input class="form-input" type="text" id="cfg-new-admin-user" required></div>
-                    <div class="form-group"><label class="form-label">网段凭密码</label><input class="form-input" type="password" id="cfg-new-admin-pass" required></div>
-                    <div class="form-group"><label class="form-label">控制台展示名</label><input class="form-input" type="text" id="cfg-new-admin-name"></div>
+                    <div class="form-group"><label class="form-label">登录用户名</label><input class="form-input" type="text" id="cfg-new-admin-user" required></div>
+                    <div class="form-group"><label class="form-label">登录密码</label><input class="form-input" type="password" id="cfg-new-admin-pass" required></div>
+                    <div class="form-group"><label class="form-label">显示名称</label><input class="form-input" type="text" id="cfg-new-admin-name"></div>
                     <button type="submit" class="btn btn-primary btn-sm">申请接入权限</button>
                 </form>
             </div>`;
@@ -341,31 +341,31 @@ const Admin = {
 
     // Actions
     async approvePost(id) {
-        if (!confirm('【网管介入】确定放行发帖指令吗？')) return;
+        if (!confirm('确定通过该贴的审核吗？')) return;
         await API.adminApprovePost(id);
-        Components.showToast('指令通过', 'success');
+        Components.showToast('审核通过', 'success');
         this.showTab('posts');
     },
 
     async rejectPost(id) {
-        const reason = prompt('【审核拦截】请输入驳回并发送给终端原因：');
+        const reason = prompt('请输入驳回该贴的原因：');
         if (reason === null) return;
         await API.adminRejectPost(id, reason);
-        Components.showToast('指令已阻断', 'success');
+        Components.showToast('已驳回', 'success');
         this.showTab('posts');
     },
 
     async deletePost(id) {
-        if (!confirm('警告：此操作不可逆！是否从介质中强制擦除本贴？')) return;
+        if (!confirm('警告：确定要删除该贴吗？此操作不可逆。')) return;
         await API.adminDeletePost(id);
-        Components.showToast('擦除成功', 'success');
+        Components.showToast('删除成功', 'success');
         this.showTab('posts');
     },
 
     async deleteComment(id) {
-        if (!confirm('警告：您确定要擦除该评论子项吗？')) return;
+        if (!confirm('警告：您确定要删除该评论吗？')) return;
         await API.adminDeleteComment(id);
-        Components.showToast('擦除成功', 'success');
+        Components.showToast('删除成功', 'success');
         if (App.state.currentPost) {
             App.showPostPage(App.state.currentPost.id);
         }
@@ -373,7 +373,7 @@ const Admin = {
 
     async toggleUser(id) {
         await API.adminToggleUser(id);
-        Components.showToast('终端许可变更生效', 'success');
+        Components.showToast('用户状态已更新', 'success');
         this.showTab('users');
     },
 
@@ -386,7 +386,7 @@ const Admin = {
                 llm_model: document.getElementById('cfg-llm-model').value,
                 llm_prompt: document.getElementById('cfg-llm-prompt').value
             });
-            Components.showToast('同步主脑网成功', 'success');
+            Components.showToast('配置保存成功', 'success');
         } catch (err) { Components.showToast(err.message, 'error'); }
     },
 
@@ -402,7 +402,7 @@ const Admin = {
                 smtp_from: document.getElementById('cfg-smtp-from').value,
                 smtp_to: document.getElementById('cfg-smtp-to').value
             });
-            Components.showToast('同步通信网成功', 'success');
+            Components.showToast('配置保存成功', 'success');
         } catch (err) { Components.showToast(err.message, 'error'); }
     },
 
@@ -412,7 +412,7 @@ const Admin = {
                 document.getElementById('cfg-old-pwd').value,
                 document.getElementById('cfg-new-pwd').value
             );
-            Components.showToast('全知之眼口令已变更', 'success');
+            Components.showToast('密码修改成功', 'success');
         } catch (err) { Components.showToast(err.message, 'error'); }
     },
 
@@ -423,7 +423,7 @@ const Admin = {
                 document.getElementById('cfg-new-admin-pass').value,
                 document.getElementById('cfg-new-admin-name').value
             );
-            Components.showToast('新节点已签署', 'success');
+            Components.showToast('新管理员添加成功', 'success');
         } catch (err) { Components.showToast(err.message, 'error'); }
     }
 };

@@ -37,11 +37,13 @@ function authMiddleware(req, res, next) {
 
     const db = getDb();
 
-    // Check nonce uniqueness (prevent replay)
+    // 临时禁用 Nonce 唯一性校验（保留签名校验验证参数即可）
+    /*
     const existingNonce = db.prepare('SELECT nonce FROM used_nonces WHERE nonce = ?').get(nonce);
     if (existingNonce) {
         return res.status(401).json({ error: 'Nonce 已被使用（可能的重放攻击）' });
     }
+    */
 
     // Find user by token
     const user = db.prepare('SELECT * FROM users WHERE api_token = ? AND is_active = 1').get(token);
@@ -61,13 +63,15 @@ function authMiddleware(req, res, next) {
         return res.status(401).json({ error: '签名验证失败' });
     }
 
-    // Store nonce to prevent replay
+    // 临时禁用存储 Nonce
+    /*
     db.prepare('INSERT INTO used_nonces (nonce) VALUES (?)').run(nonce);
 
     // Periodically clean old nonces (1% chance per request)
     if (Math.random() < 0.01) {
         db.prepare("DELETE FROM used_nonces WHERE used_at < datetime('now', '-10 minutes')").run();
     }
+    */
 
     // Attach user to request
     req.user = user;

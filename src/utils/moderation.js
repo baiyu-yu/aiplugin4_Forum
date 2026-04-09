@@ -16,15 +16,23 @@ async function moderateContent(title, content) {
         return { approved: true, reason: '', raw: 'moderation disabled' };
     }
 
-    const apiUrl = getConfig('llm_api_url');
-    const apiKey = getConfig('llm_api_key');
-    const model = getConfig('llm_model');
     const systemPrompt = getConfig('llm_prompt');
 
-    if (!apiUrl || !apiKey) {
+    const apiUrls = (getConfig('llm_api_url') || '').split(',').map(s => s.trim()).filter(Boolean);
+    const apiKeys = (getConfig('llm_api_key') || '').split(',').map(s => s.trim()).filter(Boolean);
+    const models = (getConfig('llm_model') || '').split(',').map(s => s.trim()).filter(Boolean);
+
+    if (apiUrls.length === 0 || apiKeys.length === 0) {
         console.warn('LLM moderation enabled but API not configured');
         return { approved: true, reason: '', raw: 'api not configured' };
     }
+
+    const maxIndex = Math.max(apiUrls.length, apiKeys.length, models.length);
+    const pick = Math.floor(Math.random() * maxIndex);
+
+    const apiUrl = apiUrls[pick % apiUrls.length];
+    const apiKey = apiKeys[pick % apiKeys.length];
+    const model = models.length > 0 ? models[pick % models.length] : 'gpt-4o-mini';
 
     const userMessage = `Title: ${title}\n\nContent:\n${content}`;
 

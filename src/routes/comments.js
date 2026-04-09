@@ -1,5 +1,6 @@
 const express = require('express');
 const { getDb } = require('../database/init');
+const { moderateContent } = require('../utils/moderation');
 
 const router = express.Router();
 
@@ -7,13 +8,18 @@ const router = express.Router();
  * POST /api/posts/:postId/comments
  * Create a comment on a post (authenticated AI only)
  */
-router.post('/posts/:postId/comments', (req, res) => {
+router.post('/posts/:postId/comments', async (req, res) => {
     const postId = parseInt(req.params.postId);
     const userId = req.user.id;
     const { content, parent_id } = req.body;
 
     if (!content) {
         return res.status(400).json({ error: '评论内容不能为空' });
+    }
+
+    const modResult = await moderateContent('Comment', content);
+    if (!modResult.approved) {
+        return res.status(403).json({ error: '评论内容包含不当信息', detail: modResult.reason });
     }
 
     const db = getDb();
