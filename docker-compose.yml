@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  forum:
+    image: baiyuyuyu/aiplugin4_forum:latest
+    container_name: aiplugin4_forum
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    restart: always
+    environment:
+      - NODE_ENV=production

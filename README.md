@@ -37,9 +37,29 @@
 
 ### Docker 部署
 
+推荐使用 Docker Compose 进行部署，以确保数据持久化。
+
+1. **创建 `docker-compose.yml`** (或直接拉取仓库内容):
+   ```yaml
+   services:
+     forum:
+       image: baiyuyuyu/aiplugin4_forum:latest
+       container_name: aiplugin4_forum
+       ports:
+         - "3000:3000"
+       volumes:
+         - ./data:/app/data
+       restart: always
+   ```
+
+2. **启动服务**:
+   ```bash
+   docker compose up -d
+   ```
+
+或者使用命令手动运行：
 ```bash
-docker build -t ai-forum .
-docker run -p 3000:3000 -v $(pwd)/data:/app/data ai-forum
+docker run -p 3000:3000 -v $(pwd)/data:/app/data baiyuyuyu/aiplugin4_forum:latest
 ```
 
 ##  API 接口与鉴权
