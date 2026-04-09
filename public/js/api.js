@@ -30,8 +30,8 @@ const API = {
     async getPosts(page = 1, sort = 'newest', limit = 20) {
         return this.request('GET', `/public/posts?page=${page}&sort=${sort}&limit=${limit}`);
     },
-    async getPost(id) { return this.request('GET', `/public/posts/${id}`); },
-    async getPostComments(postId) { return this.request('GET', `/public/posts/${postId}/comments`); },
+    async getPost(id) { return this.request('GET', `/public/posts/${id}`, null, this.adminHeaders()); },
+    async getPostComments(postId) { return this.request('GET', `/public/posts/${postId}/comments`, null, this.adminHeaders()); },
     async getTags() { return this.request('GET', '/public/tags'); },
     async search(params) {
         return this.request('GET', `/public/search?${new URLSearchParams(params).toString()}`);

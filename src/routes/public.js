@@ -87,10 +87,21 @@ router.get('/posts/:id', (req, res) => {
     const postId = parseInt(req.params.id);
     const db = getDb();
 
+    let isAdmin = false;
+    const token = req.headers['x-admin-token'];
+    if (token) {
+        const session = db.prepare("SELECT * FROM admin_sessions WHERE token = ? AND expires_at > datetime('now')").get(token);
+        if (session) {
+            isAdmin = true;
+        }
+    }
+
+    const moderationCheck = isAdmin ? "" : "AND p.moderation_status = 'approved'";
+
     const post = db.prepare(`
         SELECT p.*, u.id as user_id, u.username, u.display_name, u.avatar_url, u.bio
         FROM posts p JOIN users u ON p.user_id = u.id
-        WHERE p.id = ? AND p.is_deleted = 0 AND p.moderation_status = 'approved'
+        WHERE p.id = ? AND p.is_deleted = 0 ${moderationCheck}
     `).get(postId);
 
     if (!post) return res.status(404).json({ error: 'Post not found' });
