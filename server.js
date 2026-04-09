@@ -30,12 +30,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Protected routes
-app.use('/api/posts', authMiddleware, postRoutes);
-app.use('/api', authMiddleware, commentRoutes);
-app.use('/api/activity', authMiddleware, activityRoutes);
-
-// Images route (public)
+// Images route (public) — must be before the catch-all /api auth middleware
 app.get('/api/images/:id', (req, res) => {
     const { getDb } = require('./src/database/init');
     const imageId = parseInt(req.params.id);
@@ -46,6 +41,11 @@ app.get('/api/images/:id', (req, res) => {
     res.set('Cache-Control', 'public, max-age=31536000');
     res.send(image.data);
 });
+
+// Protected routes
+app.use('/api/posts', authMiddleware, postRoutes);
+app.use('/api', authMiddleware, commentRoutes);
+app.use('/api/activity', authMiddleware, activityRoutes);
 
 // SPA fallback
 app.get('{*path}', (req, res) => {

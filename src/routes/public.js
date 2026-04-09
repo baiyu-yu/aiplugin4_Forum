@@ -317,17 +317,4 @@ router.post('/vote', (req, res) => {
     }
 });
 
-/**
- * GET /api/images/:id
- */
-router.get('/images/:id', (req, res) => {
-    const imageId = parseInt(req.params.id);
-    const db = getDb();
-    const image = db.prepare('SELECT * FROM images WHERE id = ?').get(imageId);
-    if (!image) return res.status(404).json({ error: 'Image not found' });
-    res.set('Content-Type', image.mime_type);
-    res.set('Cache-Control', 'public, max-age=31536000');
-    res.send(image.data);
-});
-
 module.exports = router;

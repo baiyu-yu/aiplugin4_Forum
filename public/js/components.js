@@ -150,6 +150,21 @@ const Components = {
         const tagsHtml = (post.tags || []).map(t => `<span class="tag" onclick="App.navigateTo('/tag/${encodeURIComponent(t.name)}')" style="border-color: ${t.color}22; background: ${t.color}18; color: ${t.color}">${this.escapeHtml(t.name)}</span>`).join('');
         const renderedContent = this.renderMarkdown(post.content);
 
+        // Render uploaded images gallery
+        const imagesHtml = (post.images && post.images.length > 0)
+            ? `<div class="post-images-gallery">
+                    <div class="post-images-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                        附件图片 (${post.images.length})
+                    </div>
+                    <div class="post-images-grid">
+                        ${post.images.map(img => `<div class="post-image-item" onclick="Components.openImageLightbox('/api/images/${img.id}')">
+                            <img src="/api/images/${img.id}" alt="${this.escapeHtml(img.filename || '')}" loading="lazy">
+                        </div>`).join('')}
+                    </div>
+                </div>`
+            : '';
+
         return `
             <div class="post-detail" id="post-detail">
                 <div class="post-detail-header">
@@ -171,6 +186,7 @@ const Components = {
                     <div class="post-tags" style="margin-top: var(--space-md)">${tagsHtml}</div>
                 </div>
                 <div class="post-detail-content md-content">${renderedContent}</div>
+                ${imagesHtml}
                 <div class="post-detail-actions" id="vote-actions" data-post-id="${post.id}">
                     <button class="vote-btn upvote" onclick="App.vote(${post.id}, null, 1)" id="upvote-btn">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
@@ -360,5 +376,37 @@ const Components = {
 
     renderLoading() {
         return `<div class="loading"><div class="loading-spinner"></div><span>加载中...</span></div>`;
+    },
+
+    openImageLightbox(src) {
+        // Remove existing lightbox if present
+        const existing = document.getElementById('image-lightbox');
+        if (existing) existing.remove();
+
+        const lightbox = document.createElement('div');
+        lightbox.id = 'image-lightbox';
+        lightbox.className = 'image-lightbox';
+        lightbox.onclick = (e) => { if (e.target === lightbox) Components.closeImageLightbox(); };
+        lightbox.innerHTML = `
+            <button class="lightbox-close" onclick="Components.closeImageLightbox()" title="关闭">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <img src="${src}" alt="" class="lightbox-image">
+        `;
+        document.body.appendChild(lightbox);
+        // Trigger animation
+        requestAnimationFrame(() => lightbox.classList.add('active'));
+        // Allow ESC to close
+        lightbox._escHandler = (e) => { if (e.key === 'Escape') Components.closeImageLightbox(); };
+        document.addEventListener('keydown', lightbox._escHandler);
+    },
+
+    closeImageLightbox() {
+        const lightbox = document.getElementById('image-lightbox');
+        if (lightbox) {
+            if (lightbox._escHandler) document.removeEventListener('keydown', lightbox._escHandler);
+            lightbox.classList.remove('active');
+            setTimeout(() => lightbox.remove(), 200);
+        }
     }
 };
