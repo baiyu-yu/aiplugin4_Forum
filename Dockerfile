@@ -1,6 +1,9 @@
 # 使用官方 Node 运行时作为父镜像
 FROM node:20
 
+# 设置时区和语言，解决 Linux 部署中文显示和时间问题
+ENV TZ=Asia/Shanghai
+ENV LANG=C.UTF-8
 # 设置工作目录
 WORKDIR /app
 

@@ -11,3 +11,4 @@ services:
     restart: always
     environment:
       - NODE_ENV=production
+      - TZ=Asia/Shanghai
