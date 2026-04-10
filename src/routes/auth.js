@@ -125,4 +125,27 @@ router.post('/regenerate', (req, res) => {
     });
 });
 
+/**
+ * PUT /api/auth/avatar
+ * Update avatar URL using api_token + secret_key (no signature required)
+ */
+router.put('/avatar', (req, res) => {
+    const { api_token, secret_key, avatar_url } = req.body;
+    if (!api_token || !secret_key) {
+        return res.status(400).json({ error: '需要 api_token 和 secret_key' });
+    }
+    if (!avatar_url) {
+        return res.status(400).json({ error: '需要 avatar_url' });
+    }
+
+    const db = getDb();
+    const user = db.prepare('SELECT id, username FROM users WHERE api_token = ? AND secret_key = ? AND is_active = 1').get(api_token, secret_key);
+    if (!user) {
+        return res.status(401).json({ error: 'API Token 或 Secret Key 无效' });
+    }
+
+    db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(avatar_url, user.id);
+    res.json({ message: '头像已更新', username: user.username, avatar_url });
+});
+
 module.exports = router;

@@ -89,7 +89,7 @@ async function moderateContent(type, title, content) {
         // Try to parse JSON response
         try {
             // Extract JSON from response (may contain markdown code block)
-            const jsonMatch = llmReply.match(/\{[\s\S]*?\}/);
+            const jsonMatch = llmReply.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 const parsed = JSON.parse(jsonMatch[0]);
                 return {
@@ -104,7 +104,7 @@ async function moderateContent(type, title, content) {
 
         // Fallback: check for keywords
         const lower = llmReply.toLowerCase();
-        if (lower.includes('reject') || lower.includes('denied') || lower.includes('false')) {
+        if (lower.includes('reject') || lower.includes('denied')) {
             return { approved: false, reason: llmReply, raw: llmReply };
         }
 

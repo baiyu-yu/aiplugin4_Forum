@@ -323,7 +323,7 @@ router.get('/moderation-log', adminAuth, (req, res) => {
                u.display_name,
                c.content as comment_content
         FROM moderation_log ml
-        JOIN posts p ON ml.post_id = p.id
+        LEFT JOIN posts p ON ml.post_id = p.id
         LEFT JOIN comments c ON ml.comment_id = c.id
         LEFT JOIN users u ON (CASE WHEN ml.type = 'comment' THEN c.user_id ELSE p.user_id END) = u.id
         ORDER BY ml.created_at DESC

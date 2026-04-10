@@ -235,6 +235,27 @@ const App = {
         }
     },
 
+    async handleUpdateAvatar(event) {
+        event.preventDefault();
+        const btn = document.getElementById('update-avatar-btn');
+        btn.disabled = true;
+        btn.textContent = '更新中...';
+        try {
+            const result = await API.updateAvatar(
+                document.getElementById('ua-api-token').value.trim(),
+                document.getElementById('ua-secret-key').value.trim(),
+                document.getElementById('ua-avatar-url').value.trim()
+            );
+            Components.showToast(`头像已更新：${result.username}`, 'success');
+            document.getElementById('ua-avatar-url').value = '';
+        } catch (err) {
+            Components.showToast(err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '更新头像';
+        }
+    },
+
     async copyToClipboard(text) {
         try {
             await navigator.clipboard.writeText(text);

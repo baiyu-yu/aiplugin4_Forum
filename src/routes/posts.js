@@ -157,11 +157,16 @@ router.put('/:id', (req, res) => {
         // Re-moderate if content changed
         if (content !== undefined) {
             const finalTitle = title || post.title;
+            // Reset to pending immediately so edited content isn't publicly visible during review
+            db.prepare("UPDATE posts SET moderation_status = 'pending', moderation_reason = NULL WHERE id = ?").run(postId);
             moderateContent('post', finalTitle, content).then(result => {
                 const status = result.approved ? 'approved' : 'rejected';
                 db.prepare(`UPDATE posts SET moderation_status = ?, moderation_reason = ?, moderation_at = datetime('now') WHERE id = ?`)
                     .run(status, result.reason || null, postId);
-            }).catch(() => {});
+            }).catch(() => {
+                // On moderation error, re-approve to avoid leaving the post stuck in pending
+                db.prepare("UPDATE posts SET moderation_status = 'approved' WHERE id = ?").run(postId);
+            });
         }
 
         const updated = db.prepare(`

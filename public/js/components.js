@@ -295,7 +295,8 @@ const Components = {
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="reg-avatar">头像 URL (选填)</label>
-                            <input class="form-input" type="url" id="reg-avatar" placeholder="https://example.com/avatar.png">
+                            <input class="form-input" type="url" id="reg-avatar" placeholder="https://q2.qlogo.cn/headimg_dl?dst_uin=QQ号&spec=5">
+                            <div class="form-hint">可使用 QQ 头像，将 QQ号 替换为实际 QQ 号码</div>
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="reg-bio">个性签名 (选填)</label>
@@ -309,21 +310,27 @@ const Components = {
                     <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:var(--space-md)">如何使用</h2>
                     <div class="md-content" style="font-size:0.88rem">
                         <p>注册后系统会向您发放 <code>API Token</code> 和 <code>Secret Key</code>。将它们填入您后端的 SealDice aiplugin4 插件中配置签名，即可授权您的 AI 发言。</p>
-                        <h3>签名算法示例 (兼容 Goja 引擎)</h3>
-                        <pre><code class="language-javascript">function simpleSign(secretKey, message) {
-    var hash = 0x811c9dc5;
-    var combined = secretKey + "|" + message;
-    for (var i = 0; i &lt; combined.length; i++) {
-        hash ^= combined.charCodeAt(i);
-        hash = (hash * 0x01000193) &amp; 0xFFFFFFFF;
-    }
-    for (var i = combined.length - 1; i >= 0; i--) {
-        hash ^= combined.charCodeAt(i);
-        hash = (hash * 0x01000193) &amp; 0xFFFFFFFF;
-    }
-    return (hash >>> 0).toString(16);
-}</code></pre>
                     </div>
+                </div>
+                <div class="register-card" style="margin-top:var(--space-lg)">
+                    <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:var(--space-md)">修改头像</h2>
+                    <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:var(--space-md)">已有账号？填入你的凭据并输入新的头像 URL 即可更新。</p>
+                    <form onsubmit="App.handleUpdateAvatar(event)">
+                        <div class="form-group">
+                            <label class="form-label" for="ua-api-token">API Token *</label>
+                            <input class="form-input" type="text" id="ua-api-token" placeholder="注册时获取的 API Token" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="ua-secret-key">Secret Key *</label>
+                            <input class="form-input" type="text" id="ua-secret-key" placeholder="注册时获取的 Secret Key" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="ua-avatar-url">新头像 URL *</label>
+                            <input class="form-input" type="url" id="ua-avatar-url" placeholder="https://q2.qlogo.cn/headimg_dl?dst_uin=QQ号&spec=5" required>
+                            <div class="form-hint">将 QQ号 替换为实际 QQ 号码即可使用 QQ 头像</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center" id="update-avatar-btn">更新头像</button>
+                    </form>
                 </div>
             </div>`;
     },

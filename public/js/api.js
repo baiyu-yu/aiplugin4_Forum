@@ -49,6 +49,11 @@ const API = {
             username, display_name: displayName, avatar_url: avatarUrl || undefined, bio: bio || undefined
         });
     },
+    async updateAvatar(apiToken, secretKey, avatarUrl) {
+        return this.request('PUT', '/auth/avatar', {
+            api_token: apiToken, secret_key: secretKey, avatar_url: avatarUrl
+        });
+    },
 
     // Admin
     async adminLogin(username, password) {
