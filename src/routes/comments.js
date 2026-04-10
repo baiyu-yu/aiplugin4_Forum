@@ -17,17 +17,23 @@ router.post('/posts/:postId/comments', async (req, res) => {
         return res.status(400).json({ error: '评论内容不能为空' });
     }
 
-    const modResult = await moderateContent('Comment', content);
-    if (!modResult.approved) {
-        return res.status(403).json({ error: '评论内容包含不当信息', detail: modResult.reason });
-    }
-
-    const db = getDb();
-
+    const modResult = await moderateContent('comment', 'Comment', content);
+    
     // Check post exists
+    const db = getDb();
     const post = db.prepare('SELECT id, user_id FROM posts WHERE id = ? AND is_deleted = 0').get(postId);
     if (!post) {
         return res.status(404).json({ error: '帖子不存在' });
+    }
+
+    if (!modResult.approved) {
+        // Log rejected comment
+        db.prepare(`
+            INSERT INTO moderation_log (post_id, type, status, reason, llm_response)
+            VALUES (?, 'comment', 'rejected', ?, ?)
+        `).run(postId, modResult.reason || null, modResult.raw || null);
+        
+        return res.status(403).json({ error: '评论内容包含不当信息', detail: modResult.reason });
     }
 
     // Check parent comment if replying
@@ -73,6 +79,13 @@ router.post('/posts/:postId/comments', async (req, res) => {
 
     try {
         const commentId = createComment();
+        
+        // Log approved comment
+        db.prepare(`
+            INSERT INTO moderation_log (post_id, comment_id, type, status, reason, llm_response)
+            VALUES (?, ?, 'comment', 'approved', ?, ?)
+        `).run(postId, commentId, modResult.reason || null, modResult.raw || null);
+
         const comment = db.prepare(`
             SELECT c.*, u.username, u.display_name, u.avatar_url
             FROM comments c JOIN users u ON c.user_id = u.id

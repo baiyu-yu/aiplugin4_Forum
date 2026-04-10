@@ -185,7 +185,17 @@ router.put('/posts/:id', adminAuth, (req, res) => {
 router.delete('/posts/:id', adminAuth, (req, res) => {
     const postId = parseInt(req.params.id);
     const db = getDb();
-    db.prepare('UPDATE posts SET is_deleted = 1 WHERE id = ?').run(postId);
+    
+    // Decrement tag count if not already deleted
+    const post = db.prepare('SELECT is_deleted FROM posts WHERE id = ?').get(postId);
+    if (post && post.is_deleted === 0) {
+        db.prepare('UPDATE posts SET is_deleted = 1 WHERE id = ?').run(postId);
+        const tags = db.prepare('SELECT tag_id FROM post_tags WHERE post_id = ?').all(postId);
+        for (const t of tags) {
+            db.prepare('UPDATE tags SET post_count = MAX(0, post_count - 1) WHERE id = ?').run(t.tag_id);
+        }
+    }
+    
     res.json({ message: 'Post deleted by admin' });
 });
 
@@ -236,22 +246,42 @@ router.put('/comments/:id', adminAuth, (req, res) => {
 // ============ LLM Config ============
 
 router.get('/config/llm', adminAuth, (req, res) => {
+    let providers = [];
+    try { providers = JSON.parse(getConfig('llm_providers') || '[]'); } catch(e){}
+
     res.json({
-        llm_enabled: getConfig('llm_enabled'),
+        post_llm_enabled: getConfig('post_llm_enabled') || getConfig('llm_enabled'),
+        comment_llm_enabled: getConfig('comment_llm_enabled'),
+        post_llm_prompt: getConfig('post_llm_prompt') || getConfig('llm_prompt'),
+        comment_llm_prompt: getConfig('comment_llm_prompt'),
+        llm_providers: providers,
+        // Legacy fallback support for older frontend clients if needed
         llm_api_url: getConfig('llm_api_url'),
         llm_api_key: getConfig('llm_api_key') ? '***configured***' : '',
-        llm_model: getConfig('llm_model'),
-        llm_prompt: getConfig('llm_prompt')
+        llm_model: getConfig('llm_model')
     });
 });
 
 router.put('/config/llm', adminAuth, (req, res) => {
-    const { llm_enabled, llm_api_url, llm_api_key, llm_model, llm_prompt } = req.body;
-    if (llm_enabled !== undefined) setConfig('llm_enabled', llm_enabled);
-    if (llm_api_url) setConfig('llm_api_url', llm_api_url);
-    if (llm_api_key && llm_api_key !== '***configured***') setConfig('llm_api_key', llm_api_key);
-    if (llm_model) setConfig('llm_model', llm_model);
-    if (llm_prompt) setConfig('llm_prompt', llm_prompt);
+    const { 
+        post_llm_enabled, comment_llm_enabled, 
+        post_llm_prompt, comment_llm_prompt, 
+        llm_providers 
+    } = req.body;
+
+    if (post_llm_enabled !== undefined) setConfig('post_llm_enabled', post_llm_enabled);
+    if (comment_llm_enabled !== undefined) setConfig('comment_llm_enabled', comment_llm_enabled);
+    if (post_llm_prompt) setConfig('post_llm_prompt', post_llm_prompt);
+    if (comment_llm_prompt) setConfig('comment_llm_prompt', comment_llm_prompt);
+    
+    if (llm_providers && Array.isArray(llm_providers)) {
+        setConfig('llm_providers', JSON.stringify(llm_providers));
+    }
+    
+    // Support legacy updates just in case
+    if (req.body.llm_enabled !== undefined) setConfig('llm_enabled', req.body.llm_enabled);
+    if (req.body.llm_prompt) setConfig('llm_prompt', req.body.llm_prompt);
+
     res.json({ message: 'LLM config updated' });
 });
 
@@ -287,10 +317,15 @@ router.get('/moderation-log', adminAuth, (req, res) => {
     const offset = (page - 1) * limit;
 
     const logs = db.prepare(`
-        SELECT ml.*, p.title as post_title, u.username, u.display_name
+        SELECT ml.*, 
+               p.title as post_title, 
+               u.username, 
+               u.display_name,
+               c.content as comment_content
         FROM moderation_log ml
         JOIN posts p ON ml.post_id = p.id
-        JOIN users u ON p.user_id = u.id
+        LEFT JOIN comments c ON ml.comment_id = c.id
+        LEFT JOIN users u ON (CASE WHEN ml.type = 'comment' THEN c.user_id ELSE p.user_id END) = u.id
         ORDER BY ml.created_at DESC
         LIMIT ? OFFSET ?
     `).all(limit, offset);

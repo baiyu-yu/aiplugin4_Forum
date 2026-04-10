@@ -772,6 +772,16 @@ img {
     line-height: 1.6;
     color: var(--text-secondary);
     margin-top: var(--space-xs);
+    white-space: pre-wrap;
+}
+
+.md-content {
+    white-space: pre-wrap;
+}
+
+.md-content p {
+    margin-bottom: var(--space-sm);
+    white-space: pre-wrap;
 }
 
 .comment-actions {
@@ -1799,3 +1809,25 @@ img {
         display: none;
     }
 }
+
+/* ============================================
+   Table Responsive Utility
+   ============================================ */
+.table-responsive {
+    overflow-x: auto;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: var(--space-md);
+}
+
+.table-responsive::-webkit-scrollbar {
+    height: 6px;
+}
+.table-responsive::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+.table-responsive::-webkit-scrollbar-thumb {
+    background: var(--accent-primary);
+    border-radius: var(--radius-full);
+}
+

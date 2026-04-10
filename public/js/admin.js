@@ -140,21 +140,23 @@ const Admin = {
             </div>
             <div class="admin-chart-card" style="margin-top:var(--space-lg)">
                 <h3 style="margin-bottom:var(--space-md)">活跃用户排行</h3>
-                <table class="admin-table">
-                    <thead><tr><th>用户</th><th>帖子</th><th>评论</th><th>获赞</th><th>获踩</th><th>注册时间</th></tr></thead>
-                    <tbody>
-                        ${data.topUsers.map(u => `
-                            <tr>
-                                <td><strong>${Components.escapeHtml(u.display_name)}</strong> <span style="color:var(--text-muted)">@${Components.escapeHtml(u.username)}</span></td>
-                                <td>${u.post_count}</td>
-                                <td>${u.comment_count}</td>
-                                <td style="color:var(--accent-green)">${u.total_upvotes}</td>
-                                <td style="color:var(--accent-red)">${u.total_downvotes}</td>
-                                <td>${Components.timeAgo(u.created_at)}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="admin-table">
+                        <thead><tr><th>用户</th><th>帖子</th><th>评论</th><th>获赞</th><th>获踩</th><th>注册时间</th></tr></thead>
+                        <tbody>
+                            ${data.topUsers.map(u => `
+                                <tr>
+                                    <td><strong>${Components.escapeHtml(u.display_name)}</strong> <span style="color:var(--text-muted)">@${Components.escapeHtml(u.username)}</span></td>
+                                    <td>${u.post_count}</td>
+                                    <td>${u.comment_count}</td>
+                                    <td style="color:var(--accent-green)">${u.total_upvotes}</td>
+                                    <td style="color:var(--accent-red)">${u.total_downvotes}</td>
+                                    <td>${Components.timeAgo(u.created_at)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             </div>`;
     },
 
@@ -197,27 +199,29 @@ const Admin = {
 
         container.innerHTML = `
             <div class="filter-bar"><div class="filter-tabs">${statusFilter}</div></div>
-            <table class="admin-table">
-                <thead><tr>
-                    <th>序号</th><th>标题</th><th>发布者</th><th>状态</th><th>发布时间</th><th>操作</th>
-                </tr></thead>
-                <tbody>
-                    ${data.posts.map(p => `
-                        <tr>
-                            <td>#${p.id}</td>
-                            <td><a href="#/post/${p.id}" style="color:var(--text-primary)">${Components.escapeHtml(p.title.substring(0,50))}</a></td>
-                            <td>${Components.escapeHtml(p.display_name)}</td>
-                            <td><span class="status-badge status-${p.moderation_status}">${p.moderation_status}</span></td>
-                            <td>${Components.timeAgo(p.created_at)}</td>
-                            <td class="admin-actions">
-                                ${p.moderation_status !== 'approved' ? `<button class="btn btn-sm" style="background:var(--accent-green);color:#000" onclick="Admin.approvePost(${p.id})">通过</button>` : ''}
-                                ${p.moderation_status !== 'rejected' ? `<button class="btn btn-sm" style="background:var(--accent-amber);color:#000" onclick="Admin.rejectPost(${p.id})">拒绝</button>` : ''}
-                                <button class="btn btn-sm" style="background:var(--accent-red);color:#fff" onclick="Admin.deletePost(${p.id})">删除</button>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+            <div class="table-responsive">
+                <table class="admin-table">
+                    <thead><tr>
+                        <th>序号</th><th>标题</th><th>发布者</th><th>状态</th><th>发布时间</th><th>操作</th>
+                    </tr></thead>
+                    <tbody>
+                        ${data.posts.map(p => `
+                            <tr>
+                                <td>#${p.id}</td>
+                                <td><a href="#/post/${p.id}" style="color:var(--text-primary)">${Components.escapeHtml(p.title.substring(0,50))}</a></td>
+                                <td>${Components.escapeHtml(p.display_name)}</td>
+                                <td><span class="status-badge status-${p.moderation_status}">${p.moderation_status}</span></td>
+                                <td>${Components.timeAgo(p.created_at)}</td>
+                                <td class="admin-actions">
+                                    ${p.moderation_status !== 'approved' ? `<button class="btn btn-sm" style="background:var(--accent-green);color:#000" onclick="Admin.approvePost(${p.id})">通过</button>` : ''}
+                                    ${p.moderation_status !== 'rejected' ? `<button class="btn btn-sm" style="background:var(--accent-amber);color:#000" onclick="Admin.rejectPost(${p.id})">拒绝</button>` : ''}
+                                    <button class="btn btn-sm" style="background:var(--accent-red);color:#fff" onclick="Admin.deletePost(${p.id})">删除</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
             ${Components.renderPagination(data.pagination, `(function(p){ Admin.renderPostsTab(document.getElementById('admin-content'), p, '${status}') })`)}`;
     },
 
@@ -225,22 +229,25 @@ const Admin = {
         const data = await API.adminGetModerationLog();
         container.innerHTML = `
             <h3 style="margin-bottom:var(--space-md)">AI安全拦截日志</h3>
-            <table class="admin-table">
-                <thead><tr><th>序号</th><th>帖子摘要</th><th>发布者</th><th>状态</th><th>大模型鉴定结果</th><th>触发时间</th></tr></thead>
-                <tbody>
-                    ${data.logs.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">目前安全，无拦截日志</td></tr>' : ''}
-                    ${data.logs.map(l => `
-                        <tr>
-                            <td>#${l.post_id}</td>
-                            <td>${Components.escapeHtml((l.post_title||'').substring(0,40))}</td>
-                            <td>${Components.escapeHtml(l.display_name)}</td>
-                            <td><span class="status-badge status-${l.status}">${l.status}</span></td>
-                            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${Components.escapeHtml((l.reason || '-').substring(0,100))}</td>
-                            <td>${Components.timeAgo(l.created_at)}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+            <div class="table-responsive">
+                <table class="admin-table">
+                    <thead><tr><th>序号</th><th>类型</th><th>内容摘要</th><th>发布者</th><th>状态</th><th>大模型鉴定结果</th><th>触发时间</th></tr></thead>
+                    <tbody>
+                        ${data.logs.length === 0 ? '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">目前安全，无拦截日志</td></tr>' : ''}
+                        ${data.logs.map(l => `
+                            <tr>
+                                <td>#${l.post_id}</td>
+                                <td><span class="status-badge ${l.type === 'comment' ? '' : 'status-approved'}">${l.type === 'comment' ? '评论' : '帖子'}</span></td>
+                                <td>${Components.escapeHtml((l.type === 'comment' ? l.comment_content : l.post_title || '').substring(0,40))}</td>
+                                <td>${Components.escapeHtml(l.display_name)}</td>
+                                <td><span class="status-badge status-${l.status}">${l.status}</span></td>
+                                <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${Components.escapeHtml((l.reason || '-').substring(0,100))}</td>
+                                <td>${Components.timeAgo(l.created_at)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
             ${Components.renderPagination(data.pagination, "(function(p){Admin.renderModerationTab(document.getElementById('admin-content'))})")}`;
     },
 
@@ -248,23 +255,25 @@ const Admin = {
         const data = await API.adminGetUsers();
         container.innerHTML = `
             <h3 style="margin-bottom:var(--space-md)">注册用户管理</h3>
-            <table class="admin-table">
-                <thead><tr><th>编号</th><th>用户名</th><th>权限组</th><th>发稿数</th><th>回帖数</th><th>状态许可</th><th>注册时间</th><th>操作干预</th></tr></thead>
-                <tbody>
-                    ${data.users.map(u => `
-                        <tr>
-                            <td>#${u.id}</td>
-                            <td><strong>${Components.escapeHtml(u.display_name)}</strong> <span style="color:var(--text-muted)">@${Components.escapeHtml(u.username)}</span></td>
-                            <td><span class="status-badge ${u.role === 'superadmin' ? 'status-approved' : ''}">${u.role}</span></td>
-                            <td>${u.post_count}</td>
-                            <td>${u.comment_count}</td>
-                            <td>${u.is_active ? '<span style="color:var(--accent-green)">是</span>' : '<span style="color:var(--accent-red)">否</span>'}</td>
-                            <td>${Components.timeAgo(u.created_at)}</td>
-                            <td>${u.role !== 'superadmin' ? `<button class="btn btn-ghost btn-sm" onclick="Admin.toggleUser(${u.id})">${u.is_active ? '封禁用户' : '解封'}</button>` : ''}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>`;
+            <div class="table-responsive">
+                <table class="admin-table">
+                    <thead><tr><th>编号</th><th>用户名</th><th>权限组</th><th>发稿数</th><th>回帖数</th><th>状态许可</th><th>注册时间</th><th>操作干预</th></tr></thead>
+                    <tbody>
+                        ${data.users.map(u => `
+                            <tr>
+                                <td>#${u.id}</td>
+                                <td><strong>${Components.escapeHtml(u.display_name)}</strong> <span style="color:var(--text-muted)">@${Components.escapeHtml(u.username)}</span></td>
+                                <td><span class="status-badge ${u.role === 'superadmin' ? 'status-approved' : ''}">${u.role}</span></td>
+                                <td>${u.post_count}</td>
+                                <td>${u.comment_count}</td>
+                                <td>${u.is_active ? '<span style="color:var(--accent-green)">是</span>' : '<span style="color:var(--accent-red)">否</span>'}</td>
+                                <td>${Components.timeAgo(u.created_at)}</td>
+                                <td>${u.role !== 'superadmin' ? `<button class="btn btn-ghost btn-sm" onclick="Admin.toggleUser(${u.id})">${u.is_active ? '封禁用户' : '解封'}</button>` : ''}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>`;
     },
 
     async renderLLMConfigTab(container) {
@@ -272,28 +281,96 @@ const Admin = {
         container.innerHTML = `
             <h3 style="margin-bottom:var(--space-md)">大模型内容审核配置</h3>
             <form onsubmit="event.preventDefault(); Admin.saveLLMConfig()" class="admin-config-form">
-                <div class="form-group">
-                    <label class="form-label">拦截审核模式</label>
-                    <select class="form-input" id="cfg-llm-enabled"><option value="true" ${config.llm_enabled==='true'?'selected':''}>开启</option><option value="false" ${config.llm_enabled!=='true'?'selected':''}>关闭</option></select>
+                
+                <div class="config-section" style="padding:var(--space-md);background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:var(--space-md)">
+                    <h4 style="margin-bottom:var(--space-sm)">帖子审核</h4>
+                    <div class="form-group">
+                        <label class="form-label">拦截审核模式</label>
+                        <select class="form-input" id="cfg-post-llm-enabled"><option value="true" ${config.post_llm_enabled==='true'?'selected':''}>开启</option><option value="false" ${config.post_llm_enabled!=='true'?'selected':''}>关闭</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">系统提示词 (Prompt)</label>
+                        <textarea class="form-input" id="cfg-post-llm-prompt" rows="4" style="resize:vertical">${Components.escapeHtml(config.post_llm_prompt || '')}</textarea>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">API 接口地址 (支持多个使用英文逗号拼接)</label>
-                    <input class="form-input" id="cfg-llm-url" value="${Components.escapeHtml(config.llm_api_url || '')}">
+
+                <div class="config-section" style="padding:var(--space-md);background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:var(--space-md)">
+                    <h4 style="margin-bottom:var(--space-sm)">评论审核</h4>
+                    <div class="form-group">
+                        <label class="form-label">拦截审核模式</label>
+                        <select class="form-input" id="cfg-comment-llm-enabled"><option value="true" ${config.comment_llm_enabled==='true'?'selected':''}>开启</option><option value="false" ${config.comment_llm_enabled!=='true'?'selected':''}>关闭</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">系统提示词 (Prompt)</label>
+                        <textarea class="form-input" id="cfg-comment-llm-prompt" rows="4" style="resize:vertical">${Components.escapeHtml(config.comment_llm_prompt || '')}</textarea>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">认证密钥 (支持多个使用英文逗号拼接)</label>
-                    <input class="form-input" id="cfg-llm-key" type="password" value="${Components.escapeHtml(config.llm_api_key || '')}" placeholder="输入 API key">
+
+                <div class="config-section" style="padding:var(--space-md);background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md)">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
+                        <h4 style="margin:0">API 节点池配置</h4>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="Admin.addProvider()">+ 添加节点</button>
+                    </div>
+                    <div id="llm-providers-list"></div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">选用模型 (支持多个使用英文逗号拼接)</label>
-                    <input class="form-input" id="cfg-llm-model" value="${Components.escapeHtml(config.llm_model || '')}">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">系统提示词 (Prompt)</label>
-                    <textarea class="form-input" id="cfg-llm-prompt" rows="6" style="resize:vertical">${Components.escapeHtml(config.llm_prompt || '')}</textarea>
-                </div>
-                <button type="submit" class="btn btn-primary">保存设置</button>
+
+                <button type="submit" class="btn btn-primary" style="margin-top:var(--space-lg)">保存设置</button>
             </form>`;
+
+        Admin.providers = config.llm_providers || [];
+        if(Admin.providers.length === 0 && config.llm_api_url) {
+            // legacy fallback
+            const urls = config.llm_api_url.split(',');
+            const keys = config.llm_api_key.split(',');
+            const models = config.llm_model.split(',');
+            const len = Math.max(urls.length, keys.length, models.length);
+            for(let i=0; i<len; i++) {
+                if(urls[i]||keys[i]||models[i]) Admin.providers.push({url:urls[i]||'', key:keys[i]||'', model:models[i]||'gpt-4o-mini'});
+            }
+        }
+        Admin.renderProviders();
+    },
+
+    providers: [],
+
+    addProvider() {
+        Admin.providers.push({ url: '', key: '', model: 'gpt-4o-mini' });
+        Admin.renderProviders();
+    },
+
+    removeProvider(idx) {
+        Admin.providers.splice(idx, 1);
+        Admin.renderProviders();
+    },
+
+    renderProviders() {
+        const container = document.getElementById('llm-providers-list');
+        if (!container) return;
+        
+        if (Admin.providers.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;text-align:center;padding:var(--space-md) 0;">暂无节点，请添加。</p>';
+            return;
+        }
+
+        container.innerHTML = Admin.providers.map((p, i) => `
+            <div class="provider-card" style="background:var(--bg-tertiary);padding:var(--space-md);border-radius:var(--radius-md);margin-bottom:var(--space-sm);border:1px solid var(--border-subtle);position:relative;">
+                <button type="button" class="btn btn-ghost btn-sm" style="position:absolute;top:10px;right:10px;color:var(--accent-red)" onclick="Admin.removeProvider(${i})">删除</button>
+                <div class="form-group">
+                    <label class="form-label" style="font-size:0.8rem">API URL</label>
+                    <input class="form-input env-url" type="text" value="${Components.escapeHtml(p.url)}" onchange="Admin.providers[${i}].url = this.value" placeholder="https://api.openai.com/v1/chat/completions">
+                </div>
+                <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
+                    <div class="form-group" style="flex:1;min-width:200px">
+                        <label class="form-label" style="font-size:0.8rem">API Key (留***configured***表示不修改)</label>
+                        <input class="form-input env-key" type="password" value="${Components.escapeHtml(p.key)}" onchange="Admin.providers[${i}].key = this.value" placeholder="sk-...">
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:200px">
+                        <label class="form-label" style="font-size:0.8rem">Model</label>
+                        <input class="form-input env-model" type="text" value="${Components.escapeHtml(p.model)}" onchange="Admin.providers[${i}].model = this.value" placeholder="gpt-4o-mini">
+                    </div>
+                </div>
+            </div>
+        `).join('');
     },
 
     async renderSMTPConfigTab(container) {
@@ -380,11 +457,11 @@ const Admin = {
     async saveLLMConfig() {
         try {
             await API.adminUpdateLLMConfig({
-                llm_enabled: document.getElementById('cfg-llm-enabled').value,
-                llm_api_url: document.getElementById('cfg-llm-url').value,
-                llm_api_key: document.getElementById('cfg-llm-key').value,
-                llm_model: document.getElementById('cfg-llm-model').value,
-                llm_prompt: document.getElementById('cfg-llm-prompt').value
+                post_llm_enabled: document.getElementById('cfg-post-llm-enabled').value,
+                comment_llm_enabled: document.getElementById('cfg-comment-llm-enabled').value,
+                post_llm_prompt: document.getElementById('cfg-post-llm-prompt').value,
+                comment_llm_prompt: document.getElementById('cfg-comment-llm-prompt').value,
+                llm_providers: Admin.providers
             });
             Components.showToast('配置保存成功', 'success');
         } catch (err) { Components.showToast(err.message, 'error'); }

@@ -143,6 +143,8 @@ function initDatabase() {
         CREATE TABLE IF NOT EXISTS moderation_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             post_id INTEGER NOT NULL,
+            comment_id INTEGER,
+            type TEXT DEFAULT 'post',
             status TEXT NOT NULL,
             reason TEXT,
             llm_response TEXT,
@@ -164,13 +166,26 @@ function initDatabase() {
         CREATE INDEX IF NOT EXISTS idx_images_post_id ON images(post_id);
     `);
 
+    // Alter table for backward compatibility if the columns don't exist
+    try {
+        db.exec("ALTER TABLE moderation_log ADD COLUMN comment_id INTEGER");
+    } catch (e) {}
+    try {
+        db.exec("ALTER TABLE moderation_log ADD COLUMN type TEXT DEFAULT 'post'");
+    } catch (e) {}
+
     // Insert default config if not exists
     const defaults = {
         'llm_enabled': 'false',
+        'post_llm_enabled': 'false',
+        'comment_llm_enabled': 'false',
         'llm_api_url': 'https://api.openai.com/v1/chat/completions',
         'llm_api_key': '',
         'llm_model': 'gpt-4o-mini',
+        'llm_providers': '[]',
         'llm_prompt': '你是一个内容审核员。请判断以下帖子内容是否适合发布在一个公开论坛上。如果内容包含违法、色情、暴力、仇恨言论等不当内容，请拒绝并给出原因。如果内容合适，请通过。\n\n请以JSON格式回复：{"approved": true/false, "reason": "原因"}',
+        'post_llm_prompt': '你是一个内容审核员。请判断以下帖子内容是否适合发布在一个公开论坛上。如果内容包含违法、色情、暴力、仇恨言论等不当内容，请拒绝并给出原因。如果内容合适，请通过。\n\n请以JSON格式回复：{"approved": true/false, "reason": "原因"}',
+        'comment_llm_prompt': '你是一个内容审核员。请判断以下评论内容是否适合发布在一个公开论坛上。如果内容包含违法、色情、暴力、仇恨言论等不当内容，请拒绝并给出原因。如果内容合适，请通过。\n\n请以JSON格式回复：{"approved": true/false, "reason": "原因"}',
         'smtp_enabled': 'false',
         'smtp_host': '',
         'smtp_port': '465',

@@ -62,7 +62,7 @@ router.post('/', async (req, res) => {
         const { postId, imageIds } = insertPost();
 
         // Run moderation asynchronously
-        moderateContent(title, content).then(result => {
+        moderateContent('post', title, content).then(result => {
             const status = result.approved ? 'approved' : 'rejected';
             db.prepare(`
                 UPDATE posts SET moderation_status = ?, moderation_reason = ?, moderation_at = datetime('now')
@@ -70,8 +70,8 @@ router.post('/', async (req, res) => {
             `).run(status, result.reason || null, postId);
 
             db.prepare(`
-                INSERT INTO moderation_log (post_id, status, reason, llm_response)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO moderation_log (post_id, type, status, reason, llm_response)
+                VALUES (?, 'post', ?, ?, ?)
             `).run(postId, status, result.reason || null, result.raw || null);
 
             if (!result.approved) {
@@ -157,7 +157,7 @@ router.put('/:id', (req, res) => {
         // Re-moderate if content changed
         if (content !== undefined) {
             const finalTitle = title || post.title;
-            moderateContent(finalTitle, content).then(result => {
+            moderateContent('post', finalTitle, content).then(result => {
                 const status = result.approved ? 'approved' : 'rejected';
                 db.prepare(`UPDATE posts SET moderation_status = ?, moderation_reason = ?, moderation_at = datetime('now') WHERE id = ?`)
                     .run(status, result.reason || null, postId);
@@ -192,7 +192,17 @@ router.delete('/:id', (req, res) => {
     if (!post) return res.status(404).json({ error: 'Post not found' });
     if (post.user_id !== userId) return res.status(403).json({ error: 'Can only delete your own posts' });
 
-    db.prepare('UPDATE posts SET is_deleted = 1 WHERE id = ?').run(postId);
+    const deletePost = db.transaction(() => {
+        db.prepare('UPDATE posts SET is_deleted = 1 WHERE id = ?').run(postId);
+        
+        // Decrement tag count for deleted post
+        const tags = db.prepare('SELECT tag_id FROM post_tags WHERE post_id = ?').all(postId);
+        for (const t of tags) {
+            db.prepare('UPDATE tags SET post_count = MAX(0, post_count - 1) WHERE id = ?').run(t.tag_id);
+        }
+    });
+
+    deletePost();
     res.json({ message: 'Post deleted' });
 });
 
