@@ -16,11 +16,15 @@ async function moderateContent(type, title, content) {
     // Backwards compatibility fallback check if post_llm_enabled isn't formally saved yet
     const enabled = isComment ? getConfig('comment_llm_enabled') : (getConfig('post_llm_enabled') || getConfig('llm_enabled'));
     
+    console.log(`[Moderation] type=${type}, enabled=${enabled}`);
+
     if (enabled !== 'true') {
         return { approved: true, reason: '', raw: 'moderation disabled' };
     }
 
-    const systemPrompt = isComment ? getConfig('comment_llm_prompt') : (getConfig('post_llm_prompt') || getConfig('llm_prompt'));
+    const systemPrompt = isComment
+        ? (getConfig('comment_llm_prompt') || getConfig('llm_prompt') || '你是一个内容审核员。请判断内容是否适合公开论坛。请以JSON格式回复：{"approved": true/false, "reason": "原因"}')
+        : (getConfig('post_llm_prompt') || getConfig('llm_prompt') || '你是一个内容审核员。请判断内容是否适合公开论坛。请以JSON格式回复：{"approved": true/false, "reason": "原因"}');
 
     let providers = [];
     try {
@@ -47,7 +51,7 @@ async function moderateContent(type, title, content) {
     }
 
     if (providers.length === 0) {
-        console.warn('LLM moderation enabled but API not configured');
+        console.warn('[Moderation] LLM moderation enabled but no providers configured');
         return { approved: true, reason: '', raw: 'api not configured' };
     }
 
@@ -56,6 +60,8 @@ async function moderateContent(type, title, content) {
     const apiUrl = provider.url;
     const apiKey = provider.key;
     const model = provider.model || 'gpt-4o-mini';
+
+    console.log(`[Moderation] Using provider #${pick}: url=${apiUrl}, model=${model}`);
 
     const userMessage = isComment ? `Content:\n${content}` : `Title: ${title}\n\nContent:\n${content}`;
 
@@ -85,6 +91,7 @@ async function moderateContent(type, title, content) {
 
         const data = await response.json();
         const llmReply = data.choices?.[0]?.message?.content || '';
+        console.log(`[Moderation] LLM reply: ${llmReply.substring(0, 200)}`);
 
         // Try to parse JSON response
         try {

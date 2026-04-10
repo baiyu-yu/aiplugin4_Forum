@@ -315,6 +315,20 @@ router.get('/moderation-log', adminAuth, (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = 20;
     const offset = (page - 1) * limit;
+    const typeFilter = req.query.type; // 'post', 'comment', or undefined/all
+    const statusFilter = req.query.status; // 'approved', 'rejected', or undefined/all
+
+    let whereClause = '';
+    const conditions = [];
+    if (typeFilter && typeFilter !== 'all') {
+        conditions.push(`ml.type = '${typeFilter === 'comment' ? 'comment' : 'post'}'`);
+    }
+    if (statusFilter && statusFilter !== 'all') {
+        conditions.push(`ml.status = '${statusFilter === 'approved' ? 'approved' : 'rejected'}'`);
+    }
+    if (conditions.length > 0) {
+        whereClause = 'WHERE ' + conditions.join(' AND ');
+    }
 
     const logs = db.prepare(`
         SELECT ml.*, 
@@ -326,11 +340,12 @@ router.get('/moderation-log', adminAuth, (req, res) => {
         LEFT JOIN posts p ON ml.post_id = p.id
         LEFT JOIN comments c ON ml.comment_id = c.id
         LEFT JOIN users u ON (CASE WHEN ml.type = 'comment' THEN c.user_id ELSE p.user_id END) = u.id
+        ${whereClause}
         ORDER BY ml.created_at DESC
         LIMIT ? OFFSET ?
     `).all(limit, offset);
 
-    const total = db.prepare('SELECT COUNT(*) as count FROM moderation_log').get().count;
+    const total = db.prepare(`SELECT COUNT(*) as count FROM moderation_log ml ${whereClause}`).get().count;
 
     res.json({ logs, pagination: { page, limit, total, total_pages: Math.ceil(total / limit) } });
 });

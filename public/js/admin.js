@@ -225,30 +225,107 @@ const Admin = {
             ${Components.renderPagination(data.pagination, `(function(p){ Admin.renderPostsTab(document.getElementById('admin-content'), p, '${status}') })`)}`;
     },
 
-    async renderModerationTab(container) {
-        const data = await API.adminGetModerationLog();
+    async renderModerationTab(container, page = 1, type = 'all', status = 'all') {
+        const data = await API.adminGetModerationLog(page, type, status);
+
+        const typeOptions = [
+            { key: 'all', label: '全部类型' },
+            { key: 'post', label: '帖子' },
+            { key: 'comment', label: '评论' }
+        ];
+        const statusOptions = [
+            { key: 'all', label: '全部状态' },
+            { key: 'approved', label: '通过' },
+            { key: 'rejected', label: '拒绝' }
+        ];
+
+        const typeFilter = typeOptions.map(t =>
+            `<button class="filter-tab ${type === t.key ? 'active' : ''}" onclick="Admin.renderModerationTab(document.getElementById('admin-content'), 1, '${t.key}', '${status}')">${t.label}</button>`
+        ).join('');
+
+        const statusFilter = statusOptions.map(s =>
+            `<button class="filter-tab ${status === s.key ? 'active' : ''}" onclick="Admin.renderModerationTab(document.getElementById('admin-content'), 1, '${type}', '${s.key}')">${s.label}</button>`
+        ).join('');
+
         container.innerHTML = `
             <h3 style="margin-bottom:var(--space-md)">AI安全拦截日志</h3>
+            <div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-md)">
+                <div class="filter-bar" style="flex:1;min-width:200px"><div class="filter-tabs">${typeFilter}</div></div>
+                <div class="filter-bar" style="flex:1;min-width:200px"><div class="filter-tabs">${statusFilter}</div></div>
+            </div>
             <div class="table-responsive">
                 <table class="admin-table">
-                    <thead><tr><th>序号</th><th>类型</th><th>内容摘要</th><th>发布者</th><th>状态</th><th>大模型鉴定结果</th><th>触发时间</th></tr></thead>
+                    <thead><tr><th>序号</th><th>类型</th><th>内容摘要</th><th>发布者</th><th>状态</th><th>大模型鉴定结果</th><th>触发时间</th><th>操作</th></tr></thead>
                     <tbody>
-                        ${data.logs.length === 0 ? '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">目前安全，无拦截日志</td></tr>' : ''}
+                        ${data.logs.length === 0 ? '<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">目前安全，无拦截日志</td></tr>' : ''}
                         ${data.logs.map(l => `
                             <tr>
-                                <td>#${l.post_id}</td>
+                                <td>#${l.id}</td>
                                 <td><span class="status-badge ${l.type === 'comment' ? '' : 'status-approved'}">${l.type === 'comment' ? '评论' : '帖子'}</span></td>
                                 <td>${Components.escapeHtml((l.type === 'comment' ? l.comment_content : l.post_title || '').substring(0,40))}</td>
-                                <td>${Components.escapeHtml(l.display_name)}</td>
+                                <td>${Components.escapeHtml(l.display_name || '-')}</td>
                                 <td><span class="status-badge status-${l.status}">${l.status}</span></td>
                                 <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${Components.escapeHtml((l.reason || '-').substring(0,100))}</td>
                                 <td>${Components.timeAgo(l.created_at)}</td>
+                                <td><button class="btn btn-ghost btn-sm" onclick="Admin.showLLMResponse(${l.id})" title="查看LLM完整响应">详情</button></td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
             </div>
-            ${Components.renderPagination(data.pagination, "(function(p){Admin.renderModerationTab(document.getElementById('admin-content'))})")}`;
+            ${Components.renderPagination(data.pagination, `(function(p){ Admin.renderModerationTab(document.getElementById('admin-content'), p, '${type}', '${status}') })`)}`;
+
+        // Store logs data for response viewing
+        Admin._moderationLogs = data.logs;
+    },
+
+    _moderationLogs: [],
+
+    showLLMResponse(logId) {
+        const log = Admin._moderationLogs.find(l => l.id === logId);
+        if (!log) return Components.showToast('未找到该条日志', 'error');
+
+        const existing = document.getElementById('llm-response-modal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'llm-response-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--space-lg)';
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+        const typeLabel = log.type === 'comment' ? '评论' : '帖子';
+        const statusLabel = log.status === 'approved' ? '通过' : '拒绝';
+        const content = log.llm_response || '(无响应数据)';
+
+        modal.innerHTML = `
+            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);max-width:700px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 25px 50px rgba(0,0,0,0.3)">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:var(--space-md) var(--space-lg);border-bottom:1px solid var(--border-subtle)">
+                    <h3 style="margin:0;font-size:1rem">审核详情 #${log.id}</h3>
+                    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('llm-response-modal').remove()" style="font-size:1.2rem;line-height:1">&times;</button>
+                </div>
+                <div style="padding:var(--space-lg);overflow-y:auto;flex:1">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-sm);margin-bottom:var(--space-md);font-size:0.85rem">
+                        <div><span style="color:var(--text-muted)">类型：</span><span class="status-badge ${log.type === 'comment' ? '' : 'status-approved'}">${typeLabel}</span></div>
+                        <div><span style="color:var(--text-muted)">状态：</span><span class="status-badge status-${log.status}">${statusLabel}</span></div>
+                        <div><span style="color:var(--text-muted)">帖子ID：</span>#${log.post_id || '-'}</div>
+                        <div><span style="color:var(--text-muted)">时间：</span>${Components.timeAgo(log.created_at)}</div>
+                    </div>
+                    ${log.reason ? `<div style="margin-bottom:var(--space-md)"><div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:var(--space-xs)">审核原因</div><div style="padding:var(--space-sm);background:var(--bg-tertiary);border-radius:var(--radius-sm);font-size:0.85rem;white-space:pre-wrap">${Components.escapeHtml(log.reason)}</div></div>` : ''}
+                    <div>
+                        <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:var(--space-xs)">LLM 完整响应</div>
+                        <pre style="padding:var(--space-md);background:var(--bg-tertiary);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);font-size:0.82rem;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;margin:0;font-family:var(--font-mono, 'Cascadia Code', 'Fira Code', monospace)">${Components.escapeHtml(content)}</pre>
+                    </div>
+                </div>
+                <div style="padding:var(--space-sm) var(--space-lg);border-top:1px solid var(--border-subtle);display:flex;justify-content:flex-end">
+                    <button class="btn btn-ghost btn-sm" onclick="App.copyToClipboard(Admin._moderationLogs.find(l=>l.id===${log.id})?.llm_response||'')">复制响应</button>
+                </div>
+            </div>`;
+
+        document.body.appendChild(modal);
+
+        // ESC to close
+        const escHandler = (e) => { if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', escHandler); } };
+        document.addEventListener('keydown', escHandler);
     },
 
     async renderUsersTab(container) {

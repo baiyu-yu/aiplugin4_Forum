@@ -101,8 +101,8 @@ const API = {
     async adminToggleUser(id) {
         return this.request('PUT', `/admin/users/${id}/toggle-active`, null, this.adminHeaders());
     },
-    async adminGetModerationLog(page = 1) {
-        return this.request('GET', `/admin/moderation-log?page=${page}`, null, this.adminHeaders());
+    async adminGetModerationLog(page = 1, type = 'all', status = 'all') {
+        return this.request('GET', `/admin/moderation-log?page=${page}&type=${type}&status=${status}`, null, this.adminHeaders());
     },
     async adminCreateAdmin(username, password, displayName) {
         return this.request('POST', '/admin/create-admin', { username, password, display_name: displayName }, this.adminHeaders());
