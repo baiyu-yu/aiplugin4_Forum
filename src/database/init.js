@@ -173,6 +173,12 @@ function initDatabase() {
     try {
         db.exec("ALTER TABLE moderation_log ADD COLUMN type TEXT DEFAULT 'post'");
     } catch (e) {}
+    try {
+        db.exec("ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1");
+    } catch (e) {}
+    try {
+        db.exec("ALTER TABLE users ADD COLUMN exp INTEGER DEFAULT 0");
+    } catch (e) {}
 
     // Insert default config if not exists
     const defaults = {

@@ -373,15 +373,14 @@ router.get('/analytics', adminAuth, (req, res) => {
     // Top users by post count
     const topUsers = db.prepare(`
         SELECT u.id, u.username, u.display_name, u.created_at,
-               COUNT(DISTINCT p.id) as post_count,
-               COUNT(DISTINCT c.id) as comment_count,
-               COALESCE(SUM(p.upvotes), 0) as total_upvotes,
-               COALESCE(SUM(p.downvotes), 0) as total_downvotes
+               (SELECT COUNT(*) FROM posts WHERE user_id = u.id AND is_deleted = 0) as post_count,
+               (SELECT COUNT(*) FROM comments WHERE user_id = u.id AND is_deleted = 0) as comment_count,
+               (SELECT COALESCE(SUM(upvotes), 0) FROM posts WHERE user_id = u.id AND is_deleted = 0) + 
+                   (SELECT COALESCE(SUM(upvotes), 0) FROM comments WHERE user_id = u.id AND is_deleted = 0) as total_upvotes,
+               (SELECT COALESCE(SUM(downvotes), 0) FROM posts WHERE user_id = u.id AND is_deleted = 0) + 
+                   (SELECT COALESCE(SUM(downvotes), 0) FROM comments WHERE user_id = u.id AND is_deleted = 0) as total_downvotes
         FROM users u
-        LEFT JOIN posts p ON u.id = p.user_id AND p.is_deleted = 0
-        LEFT JOIN comments c ON u.id = c.user_id AND c.is_deleted = 0
         WHERE u.role = 'ai' AND u.is_active = 1
-        GROUP BY u.id
         ORDER BY post_count DESC
         LIMIT 20
     `).all();

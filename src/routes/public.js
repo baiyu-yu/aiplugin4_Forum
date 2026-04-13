@@ -3,6 +3,20 @@ const { getDb } = require('../database/init');
 
 const router = express.Router();
 
+function timeAgo(dateString) {
+    if (!dateString) return '';
+    const past = new Date(dateString + 'Z');
+    const now = new Date();
+    const diff = Math.floor((now - past) / 1000);
+    
+    if (diff < 60) return '刚刚';
+    if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+    if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+    if (diff < 2592000) return Math.floor(diff / 86400) + '天前';
+    if (diff < 31536000) return Math.floor(diff / 2592000) + '个月前';
+    return Math.floor(diff / 31536000) + '年前';
+}
+
 /**
  * Strip markdown syntax to get plain text preview
  */
@@ -36,7 +50,7 @@ router.get('/posts', (req, res) => {
     const sort = req.query.sort || 'newest';
 
     let orderBy = 'p.created_at DESC';
-    if (sort === 'hot') orderBy = '(p.upvotes - p.downvotes) DESC, p.created_at DESC';
+    if (sort === 'hot') orderBy = 'COALESCE((SELECT MAX(created_at) FROM comments c WHERE c.post_id = p.id AND c.is_deleted = 0), p.created_at) DESC';
     if (sort === 'most_comments') orderBy = 'p.comment_count DESC, p.created_at DESC';
     if (sort === 'most_viewed') orderBy = 'p.view_count DESC, p.created_at DESC';
 
@@ -66,6 +80,7 @@ router.get('/posts', (req, res) => {
         return {
             ...post,
             content_preview: stripMarkdown(post.content).substring(0, 200),
+            time_ago: timeAgo(post.created_at),
             content: undefined,
             tags: getPostTags.all(post.id),
             first_image_id: firstImage ? firstImage.id : null
@@ -115,7 +130,7 @@ router.get('/posts/:id', (req, res) => {
 
     const images = db.prepare('SELECT id, filename, mime_type FROM images WHERE post_id = ?').all(postId);
 
-    res.json({ post: { ...post, tags, images, view_count: post.view_count + 1 } });
+    res.json({ post: { ...post, tags, images, view_count: post.view_count + 1, time_ago: timeAgo(post.created_at) } });
 });
 
 /**
@@ -134,7 +149,7 @@ router.get('/posts/:id/comments', (req, res) => {
 
     const commentMap = {};
     const rootComments = [];
-    comments.forEach(c => { c.replies = []; commentMap[c.id] = c; });
+    comments.forEach(c => { c.replies = []; c.time_ago = timeAgo(c.created_at); commentMap[c.id] = c; });
     comments.forEach(c => {
         if (c.parent_id && commentMap[c.parent_id]) {
             commentMap[c.parent_id].replies.push(c);
@@ -184,7 +199,7 @@ router.get('/search', (req, res) => {
     if (to) { conditions.push('p.created_at <= ?'); params.push(to); }
 
     let orderBy = 'p.created_at DESC';
-    if (sort === 'hot') orderBy = '(p.upvotes - p.downvotes) DESC';
+    if (sort === 'hot') orderBy = 'COALESCE((SELECT MAX(created_at) FROM comments c WHERE c.post_id = p.id AND c.is_deleted = 0), p.created_at) DESC';
     if (sort === 'most_comments') orderBy = 'p.comment_count DESC';
 
     const whereClause = conditions.join(' AND ');
@@ -207,6 +222,7 @@ router.get('/search', (req, res) => {
     const result = posts.map(post => ({
         ...post,
         content_preview: stripMarkdown(post.content).substring(0, 200),
+        time_ago: timeAgo(post.created_at),
         content: undefined,
         tags: getPostTags.all(post.id),
         first_image_id: (getFirstImage.get(post.id) || {}).id || null
@@ -231,7 +247,7 @@ router.get('/users/:id', (req, res) => {
     const userId = parseInt(req.params.id);
 
     const user = db.prepare(`
-        SELECT id, username, display_name, avatar_url, bio, created_at
+        SELECT id, username, display_name, avatar_url, bio, created_at, level
         FROM users WHERE id = ? AND is_active = 1 AND role != 'superadmin'
     `).get(userId);
 

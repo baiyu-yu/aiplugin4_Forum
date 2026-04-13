@@ -23,7 +23,7 @@ const Admin = {
         try { await API.adminLogout(); } catch (e) {}
         localStorage.removeItem('admin_token');
         localStorage.removeItem('admin_info');
-        App.navigateTo('/admin');
+        App.showAdminPage();
     },
 
     renderLoginPage() {
@@ -166,12 +166,31 @@ const Admin = {
         const barWidth = Math.max(12, Math.floor(500 / data.length) - 4);
         const height = 180;
         const bars = data.map((d, i) => {
-            const barH = Math.max(2, (d.count / maxVal) * (height - 30));
-            const x = i * (barWidth + 4) + 20;
-            return `<rect x="${x}" y="${height - barH - 20}" width="${barWidth}" height="${barH}" fill="var(--accent-purple)" rx="2" opacity="0.8"><title>${d.date}: ${d.count} posts</title></rect>`;
+            const barH = Math.max(2, (d.count / maxVal) * (height - 40));
+            const x = i * (barWidth + 4) + 40;
+            const dateStr = d.date.split('-').slice(1).join('/');
+            return `
+                <g class="bar-group">
+                    <rect x="${x}" y="${height - barH - 20}" width="${barWidth}" height="${barH}" fill="var(--accent-purple)" rx="2" opacity="0.8">
+                        <title>${d.date}: ${d.count} posts</title>
+                    </rect>
+                    ${i % Math.ceil(data.length/7) === 0 || i === data.length - 1 ? `<text x="${x + barWidth/2}" y="${height-5}" fill="var(--text-muted)" font-size="10" text-anchor="middle">${dateStr}</text>` : ''}
+                </g>`;
         }).join('');
 
-        return `<h3 style="margin-bottom:var(--space-sm)">${title}</h3><svg width="100%" height="${height}" viewBox="0 0 ${data.length * (barWidth+4) + 40} ${height}" style="overflow:visible">${bars}<line x1="20" y1="${height-20}" x2="${data.length*(barWidth+4)+20}" y2="${height-20}" stroke="var(--border)" stroke-width="1"/></svg>`;
+        return `
+            <h3 style="margin-bottom:var(--space-sm)">${title}</h3>
+            <svg width="100%" height="${height}" viewBox="0 0 ${data.length * (barWidth+4) + 60} ${height}" style="overflow:visible">
+                <text x="30" y="15" fill="var(--text-muted)" font-size="10" text-anchor="end">${maxVal}</text>
+                <text x="30" y="${height/2}" fill="var(--text-muted)" font-size="10" text-anchor="end">${Math.floor(maxVal/2)}</text>
+                <text x="30" y="${height-20}" fill="var(--text-muted)" font-size="10" text-anchor="end">0</text>
+                <line x1="35" y1="10" x2="${data.length*(barWidth+4)+50}" y2="10" stroke="var(--border-subtle)" stroke-width="1" stroke-dasharray="2,2"/>
+                <line x1="35" y1="${height/2 - 5}" x2="${data.length*(barWidth+4)+50}" y2="${height/2 - 5}" stroke="var(--border-subtle)" stroke-width="1" stroke-dasharray="2,2"/>
+                <line x1="35" y1="${height-20}" x2="${data.length*(barWidth+4)+50}" y2="${height-20}" stroke="var(--border)" stroke-width="1"/>
+                ${bars}
+            </svg>
+            <div style="font-size:0.8rem;color:var(--text-muted);text-align:center;margin-top:5px;">日期</div>
+        `;
     },
 
     buildHorizontalBarChart(data, title) {
@@ -262,7 +281,7 @@ const Admin = {
                             <tr>
                                 <td>#${l.id}</td>
                                 <td><span class="status-badge ${l.type === 'comment' ? '' : 'status-approved'}">${l.type === 'comment' ? '评论' : '帖子'}</span></td>
-                                <td>${Components.escapeHtml((l.type === 'comment' ? l.comment_content : l.post_title || '').substring(0,40))}</td>
+                                <td>${Components.escapeHtml((l.type === 'comment' ? (l.comment_content || '') : (l.post_title || '')).substring(0,40))}</td>
                                 <td>${Components.escapeHtml(l.display_name || '-')}</td>
                                 <td><span class="status-badge status-${l.status}">${l.status}</span></td>
                                 <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${Components.escapeHtml((l.reason || '-').substring(0,100))}</td>

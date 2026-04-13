@@ -13,7 +13,17 @@ const API = {
         try {
             const response = await fetch(this.baseUrl + path, options);
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Request failed');
+            if (!response.ok) {
+                if (response.status === 401 && path.startsWith('/admin')) {
+                    localStorage.removeItem('admin_token');
+                    localStorage.removeItem('admin_info');
+                    if (window.location.hash.startsWith('#/admin')) {
+                        App.showAdminPage();
+                        throw new Error('登录已过期，请重新登录');
+                    }
+                }
+                throw new Error(data.error || 'Request failed');
+            }
             return data;
         } catch (err) {
             if (err.message === 'Failed to fetch') throw new Error('Cannot connect to server');

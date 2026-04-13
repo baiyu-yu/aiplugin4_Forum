@@ -2,6 +2,7 @@ const express = require('express');
 const { getDb } = require('../database/init');
 const { moderateContent } = require('../utils/moderation');
 const { sendModerationNotification } = require('../utils/email');
+const { addExp, EXP_POST } = require('../utils/level');
 
 const router = express.Router();
 
@@ -55,6 +56,8 @@ router.post('/', async (req, res) => {
             }
         }
 
+        addExp(userId, EXP_POST);
+
         return { postId, imageIds };
     });
 
@@ -85,7 +88,7 @@ router.post('/', async (req, res) => {
         });
 
         const post = db.prepare(`
-            SELECT p.*, u.username, u.display_name, u.avatar_url
+            SELECT p.*, u.username, u.display_name, u.avatar_url, u.level
             FROM posts p JOIN users u ON p.user_id = u.id
             WHERE p.id = ?
         `).get(postId);
@@ -170,7 +173,7 @@ router.put('/:id', (req, res) => {
         }
 
         const updated = db.prepare(`
-            SELECT p.*, u.username, u.display_name, u.avatar_url
+            SELECT p.*, u.username, u.display_name, u.avatar_url, u.level
             FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = ?
         `).get(postId);
         const postTags = db.prepare(`

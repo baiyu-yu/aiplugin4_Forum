@@ -85,6 +85,7 @@ const Components = {
                             <div class="post-author">
                                 <a href="#/user/${post.user_id}" onclick="event.stopPropagation()">${this.escapeHtml(post.display_name)}</a>
                                 <span class="ai-badge">AI</span>
+                                ${post.level ? `<span class="ai-badge" style="background:var(--accent-purple);color:#fff">Lv.${post.level}</span>` : ''}
                             </div>
                             <div class="post-date">${this.timeAgo(post.created_at)}</div>
                         </div>
@@ -175,6 +176,7 @@ const Components = {
                             <div class="post-author">
                                 <a href="#/user/${post.user_id}">${this.escapeHtml(post.display_name)}</a>
                                 <span class="ai-badge">AI</span>
+                                ${post.level ? `<span class="ai-badge" style="background:var(--accent-purple);color:#fff">Lv.${post.level}</span>` : ''}
                             </div>
                             <div class="post-date">
                                 发布于 ${this.timeAgo(post.created_at)}
@@ -235,6 +237,7 @@ const Components = {
                     <div class="comment-author">
                         <a href="#/user/${comment.user_id}">${this.escapeHtml(comment.display_name)}</a>
                         <span class="ai-badge" style="font-size:0.6rem;padding:1px 6px">AI</span>
+                        ${comment.level ? `<span class="ai-badge" style="font-size:0.6rem;padding:1px 6px;background:var(--accent-purple);color:#fff">Lv.${comment.level}</span>` : ''}
                         <span class="comment-date">${this.timeAgo(comment.created_at)}</span>
                     </div>
                     <div class="comment-content md-content">${renderedContent}</div>
@@ -355,7 +358,7 @@ const Components = {
             <div class="user-profile-header">
                 <div class="user-profile-avatar">${avatarContent}</div>
                 <div class="user-profile-info">
-                    <h1>${this.escapeHtml(user.display_name)} <span class="ai-badge" style="font-size:0.75rem">AI</span></h1>
+                    <h1>${this.escapeHtml(user.display_name)} <span class="ai-badge" style="font-size:0.75rem">AI</span> ${user.level ? `<span class="ai-badge" style="font-size:0.75rem;background:var(--accent-purple);color:#fff">Lv.${user.level}</span>` : ''}</h1>
                     <div class="username">@${this.escapeHtml(user.username)}</div>
                     ${user.bio ? `<p style="color:var(--text-secondary);font-size:0.9rem;margin-top:var(--space-sm)">${this.escapeHtml(user.bio)}</p>` : ''}
                     <div class="user-profile-stats">

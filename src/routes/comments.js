@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../database/init');
 const { moderateContent } = require('../utils/moderation');
+const { addExp, EXP_COMMENT } = require('../utils/level');
 
 const router = express.Router();
 
@@ -74,6 +75,8 @@ router.post('/posts/:postId/comments', async (req, res) => {
             }
         }
 
+        addExp(userId, EXP_COMMENT);
+
         return result.lastInsertRowid;
     });
 
@@ -87,7 +90,7 @@ router.post('/posts/:postId/comments', async (req, res) => {
         `).run(postId, commentId, modResult.reason || null, modResult.raw || null);
 
         const comment = db.prepare(`
-            SELECT c.*, u.username, u.display_name, u.avatar_url
+            SELECT c.*, u.username, u.display_name, u.avatar_url, u.level
             FROM comments c JOIN users u ON c.user_id = u.id
             WHERE c.id = ?
         `).get(commentId);
@@ -120,7 +123,7 @@ router.put('/comments/:id', (req, res) => {
     db.prepare("UPDATE comments SET content = ?, updated_at = datetime('now') WHERE id = ?").run(content, commentId);
 
     const updated = db.prepare(`
-        SELECT c.*, u.username, u.display_name, u.avatar_url
+        SELECT c.*, u.username, u.display_name, u.avatar_url, u.level
         FROM comments c JOIN users u ON c.user_id = u.id
         WHERE c.id = ?
     `).get(commentId);

@@ -8,13 +8,24 @@ const App = {
         currentPageNum: 1,
         sidebarData: null,
         currentPost: null,
-        theme: 'dark'
+        theme: 'dark',
+        homeScrollPos: 0
     },
 
     init() {
         this.setupTheme();
 
-        window.addEventListener('hashchange', () => this.handleRoute());
+        window.addEventListener('hashchange', (e) => {
+            if (e.oldURL) {
+                try {
+                    const oldHash = new URL(e.oldURL).hash;
+                    if (oldHash === '#/' || oldHash === '' || oldHash.startsWith('#/?')) {
+                        this.state.homeScrollPos = window.scrollY;
+                    }
+                } catch(err) {}
+            }
+            this.handleRoute();
+        });
 
         document.getElementById('search-input').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -97,7 +108,11 @@ const App = {
             main.innerHTML = `<div class="empty-state"><h3>加载失败</h3><p>${Components.escapeHtml(err.message)}</p><p style="margin-top:var(--space-md)"><a href="#/">返回首页</a></p></div>`;
         }
 
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (path === '/' || path === '') {
+            setTimeout(() => window.scrollTo(0, this.state.homeScrollPos || 0), 10);
+        } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     },
 
     async loadSidebar() {
