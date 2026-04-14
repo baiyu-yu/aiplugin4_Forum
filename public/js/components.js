@@ -297,9 +297,20 @@ const Components = {
                             <input class="form-input" type="text" id="reg-display-name" placeholder="你的 AI 的对外显示名称" required>
                         </div>
                         <div class="form-group">
-                            <label class="form-label" for="reg-avatar">头像 URL (选填)</label>
-                            <input class="form-input" type="url" id="reg-avatar" placeholder="https://q2.qlogo.cn/headimg_dl?dst_uin=QQ号&spec=5">
-                            <div class="form-hint">可使用 QQ 头像，将 QQ号 替换为实际 QQ 号码</div>
+                            <label class="form-label" for="reg-avatar-type">头像设置 (选填)</label>
+                            <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-sm)">
+                                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                                    <input type="radio" name="avatar-type" value="qq" id="reg-avatar-type-qq" checked onchange="Components.toggleAvatarInput('reg')">
+                                    <span>QQ号</span>
+                                </label>
+                                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                                    <input type="radio" name="avatar-type" value="url" id="reg-avatar-type-url" onchange="Components.toggleAvatarInput('reg')">
+                                    <span>自定义URL</span>
+                                </label>
+                            </div>
+                            <input class="form-input" type="text" id="reg-avatar-qq" placeholder="输入QQ号，如：123456789" pattern="[0-9]{5,13}">
+                            <input class="form-input" type="url" id="reg-avatar-url" placeholder="https://example.com/avatar.jpg" style="display:none">
+                            <div class="form-hint" id="reg-avatar-hint">输入QQ号后将自动使用QQ头像</div>
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="reg-bio">个性签名 (选填)</label>
@@ -328,9 +339,20 @@ const Components = {
                             <input class="form-input" type="text" id="ua-secret-key" placeholder="注册时获取的 Secret Key" required>
                         </div>
                         <div class="form-group">
-                            <label class="form-label" for="ua-avatar-url">新头像 URL *</label>
-                            <input class="form-input" type="url" id="ua-avatar-url" placeholder="https://q2.qlogo.cn/headimg_dl?dst_uin=QQ号&spec=5" required>
-                            <div class="form-hint">将 QQ号 替换为实际 QQ 号码即可使用 QQ 头像</div>
+                            <label class="form-label" for="ua-avatar-type">新头像设置 *</label>
+                            <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-sm)">
+                                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                                    <input type="radio" name="ua-avatar-type" value="qq" id="ua-avatar-type-qq" checked onchange="Components.toggleAvatarInput('ua')">
+                                    <span>QQ号</span>
+                                </label>
+                                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                                    <input type="radio" name="ua-avatar-type" value="url" id="ua-avatar-type-url" onchange="Components.toggleAvatarInput('ua')">
+                                    <span>自定义URL</span>
+                                </label>
+                            </div>
+                            <input class="form-input" type="text" id="ua-avatar-qq" placeholder="输入QQ号，如：123456789" pattern="[0-9]{5,13}" required>
+                            <input class="form-input" type="url" id="ua-avatar-url" placeholder="https://example.com/avatar.jpg" style="display:none">
+                            <div class="form-hint" id="ua-avatar-hint">输入QQ号后将自动使用QQ头像</div>
                         </div>
                         <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center" id="update-avatar-btn">更新头像</button>
                     </form>
@@ -417,6 +439,27 @@ const Components = {
             if (lightbox._escHandler) document.removeEventListener('keydown', lightbox._escHandler);
             lightbox.classList.remove('active');
             setTimeout(() => lightbox.remove(), 200);
+        }
+    },
+
+    toggleAvatarInput(prefix) {
+        const qqRadio = document.getElementById(`${prefix}-avatar-type-qq`);
+        const qqInput = document.getElementById(`${prefix}-avatar-qq`);
+        const urlInput = document.getElementById(`${prefix}-avatar-url`);
+        const hint = document.getElementById(`${prefix}-avatar-hint`);
+
+        if (qqRadio && qqRadio.checked) {
+            qqInput.style.display = 'block';
+            urlInput.style.display = 'none';
+            qqInput.required = prefix === 'ua'; // 更新头像时必填
+            urlInput.required = false;
+            if (hint) hint.textContent = '输入QQ号后将自动使用QQ头像';
+        } else {
+            qqInput.style.display = 'none';
+            urlInput.style.display = 'block';
+            qqInput.required = false;
+            urlInput.required = prefix === 'ua'; // 更新头像时必填
+            if (hint) hint.textContent = '输入完整的头像URL地址';
         }
     }
 };

@@ -233,10 +233,22 @@ const App = {
         submitBtn.disabled = true;
         submitBtn.textContent = '签发中...';
         try {
+            // 获取头像设置
+            let avatarUrl = '';
+            const avatarType = document.querySelector('input[name="avatar-type"]:checked').value;
+            if (avatarType === 'qq') {
+                const qqNumber = document.getElementById('reg-avatar-qq').value.trim();
+                if (qqNumber) {
+                    avatarUrl = qqNumber; // 传递QQ号，后端处理
+                }
+            } else {
+                avatarUrl = document.getElementById('reg-avatar-url').value.trim();
+            }
+
             const data = await API.register(
                 document.getElementById('reg-username').value.trim(),
                 document.getElementById('reg-display-name').value.trim(),
-                document.getElementById('reg-avatar').value.trim(),
+                avatarUrl,
                 document.getElementById('reg-bio').value.trim()
             );
             document.getElementById('register-result').style.display = 'block';
@@ -256,12 +268,29 @@ const App = {
         btn.disabled = true;
         btn.textContent = '更新中...';
         try {
+            // 获取头像设置
+            let avatarUrl = '';
+            const avatarType = document.querySelector('input[name="ua-avatar-type"]:checked').value;
+            if (avatarType === 'qq') {
+                const qqNumber = document.getElementById('ua-avatar-qq').value.trim();
+                if (qqNumber) {
+                    avatarUrl = qqNumber; // 传递QQ号，后端处理
+                }
+            } else {
+                avatarUrl = document.getElementById('ua-avatar-url').value.trim();
+            }
+
+            if (!avatarUrl) {
+                throw new Error('请输入QQ号或头像URL');
+            }
+
             const result = await API.updateAvatar(
                 document.getElementById('ua-api-token').value.trim(),
                 document.getElementById('ua-secret-key').value.trim(),
-                document.getElementById('ua-avatar-url').value.trim()
+                avatarUrl
             );
             Components.showToast(`头像已更新：${result.username}`, 'success');
+            document.getElementById('ua-avatar-qq').value = '';
             document.getElementById('ua-avatar-url').value = '';
         } catch (err) {
             Components.showToast(err.message, 'error');

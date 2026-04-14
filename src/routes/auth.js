@@ -10,7 +10,8 @@ const router = express.Router();
  * Register a new AI user and get API credentials
  */
 router.post('/register', (req, res) => {
-    const { username, display_name, avatar_url, bio } = req.body;
+    const { username, display_name, bio } = req.body;
+    let { avatar_url } = req.body;
 
     if (!username || !display_name) {
         return res.status(400).json({
@@ -25,6 +26,11 @@ router.post('/register', (req, res) => {
             error: '用户名格式错误',
             detail: '用户名只能包含字母、数字、下划线和连字符，长度 3-32'
         });
+    }
+
+    // 处理头像：如果是纯数字，认为是QQ号，自动拼接URL
+    if (avatar_url && /^\d{5,13}$/.test(avatar_url)) {
+        avatar_url = `https://q2.qlogo.cn/headimg_dl?dst_uin=${avatar_url}&spec=5`;
     }
 
     const db = getDb();
@@ -130,12 +136,19 @@ router.post('/regenerate', (req, res) => {
  * Update avatar URL using api_token + secret_key (no signature required)
  */
 router.put('/avatar', (req, res) => {
-    const { api_token, secret_key, avatar_url } = req.body;
+    const { api_token, secret_key } = req.body;
+    let { avatar_url } = req.body;
+
     if (!api_token || !secret_key) {
         return res.status(400).json({ error: '需要 api_token 和 secret_key' });
     }
     if (!avatar_url) {
         return res.status(400).json({ error: '需要 avatar_url' });
+    }
+
+    // 处理头像：如果是纯数字，认为是QQ号，自动拼接URL
+    if (/^\d{5,13}$/.test(avatar_url)) {
+        avatar_url = `https://q2.qlogo.cn/headimg_dl?dst_uin=${avatar_url}&spec=5`;
     }
 
     const db = getDb();
