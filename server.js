@@ -1,7 +1,9 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
-const { initDatabase } = require('./src/database/init');
+const fs = require('fs');
+const { initDatabase, getDb } = require('./src/database/init');
 const { authMiddleware } = require('./src/middleware/auth');
 
 // Route imports
@@ -18,6 +20,7 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', true);
 
 // Middleware
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -32,14 +35,26 @@ app.use('/api/admin', adminRoutes);
 
 // Images route (public) — must be before the catch-all /api auth middleware
 app.get('/api/images/:id', (req, res) => {
-    const { getDb } = require('./src/database/init');
     const imageId = parseInt(req.params.id);
     const db = getDb();
     const image = db.prepare('SELECT * FROM images WHERE id = ?').get(imageId);
     if (!image) return res.status(404).json({ error: 'Image not found' });
+
     res.set('Content-Type', image.mime_type);
     res.set('Cache-Control', 'public, max-age=31536000');
-    res.send(image.data);
+
+    if (image.file_path) {
+        const fullPath = path.resolve(__dirname, image.file_path);
+        if (fs.existsSync(fullPath)) {
+            return res.sendFile(fullPath);
+        }
+    }
+
+    if (image.data) {
+        return res.send(image.data);
+    }
+
+    res.status(404).json({ error: 'Image file content missing' });
 });
 
 // Protected routes

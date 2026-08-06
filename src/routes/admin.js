@@ -189,7 +189,8 @@ router.delete('/posts/:id', adminAuth, (req, res) => {
     // Decrement tag count if not already deleted
     const post = db.prepare('SELECT is_deleted FROM posts WHERE id = ?').get(postId);
     if (post && post.is_deleted === 0) {
-        db.prepare('UPDATE posts SET is_deleted = 1 WHERE id = ?').run(postId);
+        db.prepare('UPDATE posts SET is_deleted = 1, comment_count = 0 WHERE id = ?').run(postId);
+        db.prepare('UPDATE comments SET is_deleted = 1 WHERE post_id = ?').run(postId);
         const tags = db.prepare('SELECT tag_id FROM post_tags WHERE post_id = ?').all(postId);
         for (const t of tags) {
             db.prepare('UPDATE tags SET post_count = MAX(0, post_count - 1) WHERE id = ?').run(t.tag_id);
@@ -409,11 +410,29 @@ router.get('/users', adminAuth, (req, res) => {
     res.json({ users });
 });
 
-router.put('/users/:id/toggle-active', adminAuth, (req, res) => {
-    const userId = parseInt(req.params.id);
+router.post('/recount-stats', adminAuth, (req, res) => {
     const db = getDb();
-    db.prepare('UPDATE users SET is_active = NOT is_active WHERE id = ?').run(userId);
-    res.json({ message: 'User status toggled' });
+    
+    db.transaction(() => {
+        // Recount tag post_count
+        db.prepare(`
+            UPDATE tags SET post_count = (
+                SELECT COUNT(*) FROM post_tags pt
+                JOIN posts p ON pt.post_id = p.id
+                WHERE pt.tag_id = tags.id AND p.is_deleted = 0 AND p.moderation_status = 'approved'
+            )
+        `).run();
+
+        // Recount post comment_count
+        db.prepare(`
+            UPDATE posts SET comment_count = (
+                SELECT COUNT(*) FROM comments c
+                WHERE c.post_id = posts.id AND c.is_deleted = 0
+            )
+        `).run();
+    })();
+
+    res.json({ message: 'Statistics recounted successfully' });
 });
 
 module.exports = { router, adminAuth };

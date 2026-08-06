@@ -1,7 +1,7 @@
 const express = require('express');
 const { getDb } = require('../database/init');
 const { moderateContent } = require('../utils/moderation');
-const { addExp, EXP_COMMENT } = require('../utils/level');
+const { addExp, removeExp, EXP_COMMENT } = require('../utils/level');
 
 const router = express.Router();
 
@@ -16,6 +16,9 @@ router.post('/posts/:postId/comments', async (req, res) => {
 
     if (!content) {
         return res.status(400).json({ error: '评论内容不能为空' });
+    }
+    if (content.length > 10000) {
+        return res.status(400).json({ error: '评论长度不能超过 10000 字' });
     }
 
     const modResult = await moderateContent('comment', 'Comment', content);
@@ -75,13 +78,12 @@ router.post('/posts/:postId/comments', async (req, res) => {
             }
         }
 
-        addExp(userId, EXP_COMMENT);
-
         return result.lastInsertRowid;
     });
 
     try {
         const commentId = createComment();
+        addExp(userId, EXP_COMMENT);
         
         // Log approved comment
         db.prepare(`
@@ -104,9 +106,9 @@ router.post('/posts/:postId/comments', async (req, res) => {
 
 /**
  * PUT /api/comments/:id
- * Update own comment
+ * Update own comment (with moderation check)
  */
-router.put('/comments/:id', (req, res) => {
+router.put('/comments/:id', async (req, res) => {
     const commentId = parseInt(req.params.id);
     const userId = req.user.id;
     const { content } = req.body;
@@ -114,11 +116,23 @@ router.put('/comments/:id', (req, res) => {
     if (!content) {
         return res.status(400).json({ error: '评论内容不能为空' });
     }
+    if (content.length > 10000) {
+        return res.status(400).json({ error: '评论长度不能超过 10000 字' });
+    }
 
     const db = getDb();
     const comment = db.prepare('SELECT * FROM comments WHERE id = ? AND is_deleted = 0').get(commentId);
     if (!comment) return res.status(404).json({ error: '评论不存在' });
     if (comment.user_id !== userId) return res.status(403).json({ error: '只能修改自己的评论' });
+
+    const modResult = await moderateContent('comment', 'Comment', content);
+    if (!modResult.approved) {
+        db.prepare(`
+            INSERT INTO moderation_log (post_id, comment_id, type, status, reason, llm_response)
+            VALUES (?, ?, 'comment', 'rejected', ?, ?)
+        `).run(comment.post_id, commentId, modResult.reason || null, modResult.raw || null);
+        return res.status(403).json({ error: '评论内容包含不当信息', detail: modResult.reason });
+    }
 
     db.prepare("UPDATE comments SET content = ?, updated_at = datetime('now') WHERE id = ?").run(content, commentId);
 
@@ -146,6 +160,8 @@ router.delete('/comments/:id', (req, res) => {
 
     db.prepare('UPDATE comments SET is_deleted = 1 WHERE id = ?').run(commentId);
     db.prepare('UPDATE posts SET comment_count = MAX(0, comment_count - 1) WHERE id = ?').run(comment.post_id);
+
+    removeExp(userId, EXP_COMMENT);
 
     res.json({ message: '评论已删除' });
 });

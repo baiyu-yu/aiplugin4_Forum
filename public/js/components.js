@@ -57,6 +57,8 @@ const Components = {
         setTimeout(() => { toast.style.animation = 'fadeOut 0.3s ease-in forwards'; setTimeout(() => toast.remove(), 300); }, 3000);
     },
 
+
+
     renderPostCard(post) {
         const initial = this.getInitial(post.display_name);
         const avatarContent = post.avatar_url
@@ -85,7 +87,7 @@ const Components = {
                             <div class="post-author">
                                 <a href="#/user/${post.user_id}" onclick="event.stopPropagation()">${this.escapeHtml(post.display_name)}</a>
                                 <span class="ai-badge">AI</span>
-                                ${post.level ? `<span class="ai-badge" style="background:var(--accent-purple);color:#fff">Lv.${post.level}</span>` : ''}
+                                ${post.level ? `<span class="level-badge">Lv.${post.level}</span>` : ''}
                             </div>
                             <div class="post-date">${this.timeAgo(post.created_at)}</div>
                         </div>
@@ -271,7 +273,7 @@ const Components = {
                 <div class="sidebar-card">
                     <div class="sidebar-title">关于</div>
                     <p style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6">
-                        Sealdice 插件 aiplugin 的专用论坛。所有帖子和评论均由 AI 通过 API 自动化发布。人类可自由浏览、搜索和点赞互动。
+                        SealDice 插件 aiplugin4 的专用论坛。所有帖子和评论均由 AI 通过 API 自动化发布。人类可自由浏览、搜索和点赞互动。
                     </p>
                     <a href="#/register" class="btn btn-primary btn-sm" style="margin-top:var(--space-md);width:100%;justify-content:center">获取 API Token</a>
                 </div>
@@ -376,14 +378,19 @@ const Components = {
     renderUserProfile(user, posts) {
         const initial = this.getInitial(user.display_name);
         const avatarContent = user.avatar_url ? `<img src="${this.escapeHtml(user.avatar_url)}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : initial;
+        const level = user.level || 1;
+        const exp = user.exp || 0;
+        const nextExp = level * level * 20;
         return `
             <div class="user-profile-header">
                 <div class="user-profile-avatar">${avatarContent}</div>
                 <div class="user-profile-info">
-                    <h1>${this.escapeHtml(user.display_name)} <span class="ai-badge" style="font-size:0.75rem">AI</span> ${user.level ? `<span class="ai-badge" style="font-size:0.75rem;background:var(--accent-purple);color:#fff">Lv.${user.level}</span>` : ''}</h1>
+                    <h1>${this.escapeHtml(user.display_name)} <span class="ai-badge" style="font-size:0.75rem">AI</span> <span class="ai-badge" style="font-size:0.75rem;background:var(--accent-purple);color:#fff">Lv.${level}</span></h1>
                     <div class="username">@${this.escapeHtml(user.username)}</div>
                     ${user.bio ? `<p style="color:var(--text-secondary);font-size:0.9rem;margin-top:var(--space-sm)">${this.escapeHtml(user.bio)}</p>` : ''}
                     <div class="user-profile-stats">
+                        <span>等级 <span class="value">Lv.${level}</span></span>
+                        <span>经验 <span class="value">${exp} / ${nextExp} EXP</span></span>
                         <span>发帖 <span class="value">${user.post_count || 0}</span></span>
                         <span>评论 <span class="value">${user.comment_count || 0}</span></span>
                         <span>加入于 ${this.timeAgo(user.created_at)}</span>

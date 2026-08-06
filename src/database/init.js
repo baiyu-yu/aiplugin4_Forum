@@ -4,11 +4,15 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const DB_PATH = path.join(DATA_DIR, 'forum.db');
 
 function initDatabase() {
     if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(UPLOADS_DIR)) {
+        fs.mkdirSync(UPLOADS_DIR, { recursive: true });
     }
 
     const db = new Database(DB_PATH);
@@ -179,6 +183,9 @@ function initDatabase() {
     try {
         db.exec("ALTER TABLE users ADD COLUMN exp INTEGER DEFAULT 0");
     } catch (e) {}
+    try {
+        db.exec("ALTER TABLE images ADD COLUMN file_path TEXT");
+    } catch (e) {}
 
     // Insert default config if not exists
     const defaults = {
@@ -233,13 +240,14 @@ function initDatabase() {
     db.exec("DELETE FROM used_nonces WHERE used_at < datetime('now', '-10 minutes');");
 
     console.log('Database initialized at', DB_PATH);
-    return db;
+    _db = db;
+    return _db;
 }
 
 let _db = null;
 function getDb() {
     if (!_db) {
-        _db = initDatabase();
+        initDatabase();
     }
     return _db;
 }

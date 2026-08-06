@@ -39,6 +39,44 @@ function stripMarkdown(md) {
         .trim();
 }
 
+function enrichPostsWithTagsAndImages(db, posts) {
+    if (!posts || posts.length === 0) return [];
+    const postIds = posts.map(p => p.id);
+    const placeholders = postIds.map(() => '?').join(',');
+
+    const allTags = db.prepare(`
+        SELECT pt.post_id, t.name, t.color
+        FROM tags t
+        JOIN post_tags pt ON t.id = pt.tag_id
+        WHERE pt.post_id IN (${placeholders})
+    `).all(...postIds);
+
+    const tagsMap = {};
+    allTags.forEach(t => {
+        if (!tagsMap[t.post_id]) tagsMap[t.post_id] = [];
+        tagsMap[t.post_id].push({ name: t.name, color: t.color });
+    });
+
+    const allImages = db.prepare(`
+        SELECT post_id, MIN(id) as first_image_id
+        FROM images
+        WHERE post_id IN (${placeholders})
+        GROUP BY post_id
+    `).all(...postIds);
+
+    const imagesMap = {};
+    allImages.forEach(img => { imagesMap[img.post_id] = img.first_image_id; });
+
+    return posts.map(post => ({
+        ...post,
+        content_preview: stripMarkdown(post.content).substring(0, 200),
+        time_ago: timeAgo(post.created_at),
+        content: undefined,
+        tags: tagsMap[post.id] || [],
+        first_image_id: imagesMap[post.id] || null
+    }));
+}
+
 /**
  * GET /api/public/posts
  */
@@ -65,27 +103,7 @@ router.get('/posts', (req, res) => {
         LIMIT ? OFFSET ?
     `).all(limit, offset);
 
-    const getPostTags = db.prepare(`
-        SELECT t.name, t.color FROM tags t
-        JOIN post_tags pt ON t.id = pt.tag_id
-        WHERE pt.post_id = ?
-    `);
-
-    const getFirstImage = db.prepare(`
-        SELECT id, mime_type FROM images WHERE post_id = ? LIMIT 1
-    `);
-
-    const result = posts.map(post => {
-        const firstImage = getFirstImage.get(post.id);
-        return {
-            ...post,
-            content_preview: stripMarkdown(post.content).substring(0, 200),
-            time_ago: timeAgo(post.created_at),
-            content: undefined,
-            tags: getPostTags.all(post.id),
-            first_image_id: firstImage ? firstImage.id : null
-        };
-    });
+    const result = enrichPostsWithTagsAndImages(db, posts);
 
     const total = db.prepare("SELECT COUNT(*) as count FROM posts WHERE is_deleted = 0 AND moderation_status = 'approved'").get().count;
 
@@ -94,6 +112,14 @@ router.get('/posts', (req, res) => {
         pagination: { page, limit, total, total_pages: Math.ceil(total / limit) }
     });
 });
+
+const recentViews = new Map();
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, time] of recentViews.entries()) {
+        if (now - time > 600000) recentViews.delete(key);
+    }
+}, 300000);
 
 /**
  * GET /api/public/posts/:id
@@ -121,7 +147,16 @@ router.get('/posts/:id', (req, res) => {
 
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
-    db.prepare('UPDATE posts SET view_count = view_count + 1 WHERE id = ?').run(postId);
+    const voterIp = req.ip || req.connection?.remoteAddress || '0.0.0.0';
+    const viewKey = `${voterIp}:${postId}`;
+    const now = Date.now();
+    let incremented = false;
+
+    if (!recentViews.has(viewKey) || (now - recentViews.get(viewKey) > 600000)) {
+        recentViews.set(viewKey, now);
+        db.prepare('UPDATE posts SET view_count = view_count + 1 WHERE id = ?').run(postId);
+        incremented = true;
+    }
 
     const tags = db.prepare(`
         SELECT t.name, t.color FROM tags t
@@ -130,7 +165,8 @@ router.get('/posts/:id', (req, res) => {
 
     const images = db.prepare('SELECT id, filename, mime_type FROM images WHERE post_id = ?').all(postId);
 
-    res.json({ post: { ...post, tags, images, view_count: post.view_count + 1, time_ago: timeAgo(post.created_at) } });
+    const updatedViewCount = post.view_count + (incremented ? 1 : 0);
+    res.json({ post: { ...post, tags, images, view_count: updatedViewCount, time_ago: timeAgo(post.created_at) } });
 });
 
 /**
@@ -214,19 +250,7 @@ router.get('/search', (req, res) => {
         LIMIT ? OFFSET ?
     `).all(...params, limit, offset);
 
-    const getPostTags = db.prepare(`
-        SELECT t.name, t.color FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = ?
-    `);
-    const getFirstImage = db.prepare('SELECT id FROM images WHERE post_id = ? LIMIT 1');
-
-    const result = posts.map(post => ({
-        ...post,
-        content_preview: stripMarkdown(post.content).substring(0, 200),
-        time_ago: timeAgo(post.created_at),
-        content: undefined,
-        tags: getPostTags.all(post.id),
-        first_image_id: (getFirstImage.get(post.id) || {}).id || null
-    }));
+    const result = enrichPostsWithTagsAndImages(db, posts);
 
     const totalResult = db.prepare(`
         SELECT COUNT(*) as count FROM posts p JOIN users u ON p.user_id = u.id WHERE ${whereClause}
@@ -247,7 +271,7 @@ router.get('/users/:id', (req, res) => {
     const userId = parseInt(req.params.id);
 
     const user = db.prepare(`
-        SELECT id, username, display_name, avatar_url, bio, created_at, level
+        SELECT id, username, display_name, avatar_url, bio, created_at, level, exp
         FROM users WHERE id = ? AND is_active = 1 AND role != 'superadmin'
     `).get(userId);
 

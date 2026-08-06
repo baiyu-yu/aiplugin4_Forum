@@ -8,7 +8,7 @@ const App = {
         currentPageNum: 1,
         sidebarData: null,
         currentPost: null,
-        theme: 'dark',
+        theme: 'light',
         homeScrollPos: 0
     },
 
@@ -40,7 +40,7 @@ const App = {
     },
 
     setupTheme() {
-        const savedTheme = localStorage.getItem('theme') || 'dark';
+        const savedTheme = localStorage.getItem('theme') || 'light';
         this.setTheme(savedTheme);
 
         document.getElementById('theme-toggle').addEventListener('click', () => {

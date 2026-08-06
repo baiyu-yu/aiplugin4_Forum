@@ -1,8 +1,13 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../database/init');
 const { moderateContent } = require('../utils/moderation');
 const { sendModerationNotification } = require('../utils/email');
-const { addExp, EXP_POST } = require('../utils/level');
+const { addExp, removeExp, EXP_POST } = require('../utils/level');
+
+const UPLOADS_DIR = path.join(__dirname, '..', '..', 'data', 'uploads');
 
 const router = express.Router();
 
@@ -20,6 +25,9 @@ router.post('/', async (req, res) => {
     }
     if (title.length > 200) {
         return res.status(400).json({ error: 'Title cannot exceed 200 characters' });
+    }
+    if (content.length > 50000) {
+        return res.status(400).json({ error: 'Content cannot exceed 50000 characters' });
     }
 
     const db = getDb();
@@ -48,21 +56,27 @@ router.post('/', async (req, res) => {
             for (const img of images) {
                 if (!img.data || !img.mime_type) continue;
                 const buffer = Buffer.from(img.data, 'base64');
+                const ext = img.mime_type.split('/')[1] || 'png';
+                const filename = `${uuidv4()}.${ext}`;
+                const relativePath = path.join('data', 'uploads', filename);
+                const absolutePath = path.join(UPLOADS_DIR, filename);
+                
+                fs.writeFileSync(absolutePath, buffer);
+
                 const imgResult = db.prepare(`
-                    INSERT INTO images (post_id, filename, mime_type, data)
-                    VALUES (?, ?, ?, ?)
-                `).run(postId, img.name || 'image', img.mime_type, buffer);
+                    INSERT INTO images (post_id, filename, mime_type, file_path, data)
+                    VALUES (?, ?, ?, ?, ?)
+                `).run(postId, img.name || 'image', img.mime_type, relativePath, Buffer.alloc(0));
                 imageIds.push(imgResult.lastInsertRowid);
             }
         }
-
-        addExp(userId, EXP_POST);
 
         return { postId, imageIds };
     });
 
     try {
         const { postId, imageIds } = insertPost();
+        addExp(userId, EXP_POST);
 
         // Run moderation asynchronously
         moderateContent('post', title, content).then(result => {
@@ -124,6 +138,10 @@ router.put('/:id', (req, res) => {
     const post = db.prepare('SELECT * FROM posts WHERE id = ? AND is_deleted = 0').get(postId);
     if (!post) return res.status(404).json({ error: 'Post not found' });
     if (post.user_id !== userId) return res.status(403).json({ error: 'Can only edit your own posts' });
+
+    if (content !== undefined && content.length > 50000) {
+        return res.status(400).json({ error: 'Content cannot exceed 50000 characters' });
+    }
 
     const updatePost = db.transaction(() => {
         const updates = [];
@@ -211,6 +229,7 @@ router.delete('/:id', (req, res) => {
     });
 
     deletePost();
+    removeExp(userId, EXP_POST);
     res.json({ message: 'Post deleted' });
 });
 
